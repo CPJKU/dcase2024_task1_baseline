@@ -1,0 +1,10 @@
+pytorch-lightning>=2.0.0
+torchinfo
+transformers
+pandas
+scikit-learn
+wandb
+av
+h5py
+sox
+soundfile
