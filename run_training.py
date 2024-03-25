@@ -361,7 +361,8 @@ def train(config):
                          logger=wandb_logger,
                          accelerator='gpu',
                          devices=1,
-                         precision=config.precision)
+                         precision=config.precision,
+                         callbacks=[pl.callbacks.ModelCheckpoint(save_last=True)])
     # start training and validation for the specified number of epochs
     trainer.fit(pl_module, train_dl, test_dl)
 
@@ -382,10 +383,9 @@ def evaluate(config):
     assert config.ckpt_id is not None, "A value for argument 'ckpt_id' must be provided."
     ckpt_dir = os.path.join(config.project_name, config.ckpt_id, "checkpoints")
     assert os.path.exists(ckpt_dir), f"No such folder: {ckpt_dir}"
-    ckpt_files = [os.path.join(ckpt_dir, ckpt_file) for ckpt_file in os.listdir(ckpt_dir)]
-    assert len(ckpt_files) == 1, f"Exactly one checkpoint must be available in {ckpt_dir}. " \
-                                 f"Implement a mechanism to select desired checkpoint."
-    ckpt_file = ckpt_files[0]
+    ckpt_file = os.path.join(ckpt_dir, "last.ckpt")
+    assert os.path.exists(ckpt_file), f"No such file: {ckpt_file}. Implement your own mechanism to select" \
+                                      f"the desired checkpoint."
 
     # create folder to store predictions
     os.makedirs("predictions", exist_ok=True)
@@ -394,7 +394,10 @@ def evaluate(config):
 
     # load lightning module from checkpoint
     pl_module = PLModule.load_from_checkpoint(ckpt_file, config=config)
-    trainer = pl.Trainer(logger=False, precision=config.precision)
+    trainer = pl.Trainer(logger=False,
+                         accelerator='gpu',
+                         devices=1,
+                         precision=config.precision)
 
     # evaluate lightning module on development-test split
     test_dl = DataLoader(dataset=get_test_set(),

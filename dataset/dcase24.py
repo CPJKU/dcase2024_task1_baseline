@@ -162,6 +162,7 @@ class BasicDCASE24EvalDataset(TorchDataset):
 
 
 def get_eval_set():
+    assert os.path.exists(dataset_config['eval_dir']), f"No such folder: {dataset_config['eval_dir']}"
     ds = get_base_eval_set(dataset_config['eval_meta_csv'], dataset_config['eval_dir'])
     return ds
 
