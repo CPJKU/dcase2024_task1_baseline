@@ -15,7 +15,7 @@ from models.baseline import get_model
 from helpers.utils import mixstyle
 from helpers import nessi
 
-
+torch.set_float32_matmul_precision("high")
 class PLModule(pl.LightningModule):
     def __init__(self, config):
         super().__init__()
@@ -121,11 +121,12 @@ class PLModule(pl.LightningModule):
         """
         x, files, labels, devices, cities = train_batch
         x = self.mel_forward(x)  # we convert the raw audio signals into log mel spectrograms
-
+        labels = labels.type(torch.LongTensor)
+        labels = labels.to(device=x.device)
         if self.config.mixstyle_p > 0:
             # frequency mixstyle
             x = mixstyle(x, self.config.mixstyle_p, self.config.mixstyle_alpha)
-        y_hat = self.model(x)
+        y_hat = self.model(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
         loss = samples_loss.mean()
 
@@ -139,8 +140,9 @@ class PLModule(pl.LightningModule):
 
     def validation_step(self, val_batch, batch_idx):
         x, files, labels, devices, cities = val_batch
-
-        y_hat = self.forward(x)
+        labels = labels.type(torch.LongTensor)
+        labels = labels.to(device=x.device)
+        y_hat = self.forward(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
 
         # for computing accuracy
@@ -220,7 +222,8 @@ class PLModule(pl.LightningModule):
 
     def test_step(self, test_batch, batch_idx):
         x, files, labels, devices, cities = test_batch
-
+        labels = labels.type(torch.LongTensor)
+        labels = labels.to(device=x.device)
         # maximum memory allowance for parameters: 128 KB
         # baseline has 61148 parameters -> we can afford 16-bit precision
         # since 61148 * 16 bit ~ 122 kB
@@ -229,7 +232,7 @@ class PLModule(pl.LightningModule):
         self.model.half()
         x = self.mel_forward(x)
         x = x.half()
-        y_hat = self.model(x)
+        y_hat = self.model(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
 
         # for computing accuracy
@@ -361,6 +364,7 @@ def train(config):
                          logger=wandb_logger,
                          accelerator='gpu',
                          devices=1,
+                         num_sanity_val_steps=0,
                          precision=config.precision,
                          callbacks=[pl.callbacks.ModelCheckpoint(save_last=True)])
     # start training and validation for the specified number of epochs
