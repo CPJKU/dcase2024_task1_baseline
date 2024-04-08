@@ -227,7 +227,7 @@ class PLModule(pl.LightningModule):
         # maximum memory allowance for parameters: 128 KB
         # baseline has 61148 parameters -> we can afford 16-bit precision
         # since 61148 * 16 bit ~ 122 kB
-
+        
         # assure fp16
         self.model.half()
         x = self.mel_forward(x)
