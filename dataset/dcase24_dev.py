@@ -18,8 +18,10 @@ dataset_config = {
     "split_path": "split_setup",
     "split_url": "https://github.com/CPJKU/dcase2024_task1_baseline/releases/download/files/",
     "test_split_csv": "test.csv",
-    "eval_dir": os.path.join(dataset_dir, "..", "TAU-urban-acoustic-scenes-2024-mobile-evaluation"), 
-    "eval_meta_csv": os.path.join(dataset_dir, "..", "TAU-urban-acoustic-scenes-2024-mobile-evaluation", "meta.csv")
+    "eval_dir": os.path.join(dataset_dir), 
+    "eval_meta_csv": os.path.join(dataset_dir, "meta.csv")
+    # "eval_dir": os.path.join(dataset_dir, "TAU-urban-acoustic-scenes-2024-mobile-evaluation"), 
+    # "eval_meta_csv": os.path.join(dataset_dir,  "TAU-urban-acoustic-scenes-2024-mobile-evaluation", "meta.csv")
 }
 
 
