@@ -1,0 +1,3 @@
+fold1_train contains training files.
+fold1_evaluate contains validation files. THIS IS USED FOR VACC and is EXACTLY the same as test.csv in the split_setup folder
+fold1_test contains test/evaluate files
