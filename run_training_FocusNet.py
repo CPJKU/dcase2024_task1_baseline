@@ -16,6 +16,11 @@ from helpers.utils import mixstyle
 from helpers import nessi
 
 torch.set_float32_matmul_precision("high")
+
+## In FocusNet, we need a baseline or it's logits to adjust the weighting of the loss for student logits.
+## We load logits from a .pt file by calling logits = torch.load(logits).float()
+
+
 class PLModule(pl.LightningModule):
     def __init__(self, config):
         super().__init__()
@@ -50,7 +55,7 @@ class PLModule(pl.LightningModule):
             freqm,
             timem
         )
-
+        
         # the baseline model
         self.model = get_model(n_classes=config.n_classes,
                                in_channels=config.in_channels,
@@ -126,7 +131,12 @@ class PLModule(pl.LightningModule):
         if self.config.mixstyle_p > 0:
             # frequency mixstyle
             x = mixstyle(x, self.config.mixstyle_p, self.config.mixstyle_alpha)
-        y_hat = self.model(x.cuda())
+        y_hat = self.model(x.cuda()) # This is the logit
+# At this point we want to perform FocusNet loss instead      
+
+
+
+
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
         loss = samples_loss.mean()
 
@@ -227,7 +237,7 @@ class PLModule(pl.LightningModule):
         # maximum memory allowance for parameters: 128 KB
         # baseline has 61148 parameters -> we can afford 16-bit precision
         # since 61148 * 16 bit ~ 122 kB
-        
+
         # assure fp16
         self.model.half()
         x = self.mel_forward(x)
