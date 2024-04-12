@@ -4,6 +4,7 @@ from sklearn import preprocessing
 from torch.utils.data import Dataset as TorchDataset
 import torch
 import torchaudio
+import torch.nn.functional as F
 from torch.hub import download_url_to_file
 import numpy as np
 
@@ -19,12 +20,40 @@ dataset_config = {
     "split_url": "https://github.com/CPJKU/dcase2024_task1_baseline/releases/download/files/",
     "test_split_csv": "test.csv",
     "eval_dir": os.path.join(dataset_dir), 
-    "eval_meta_csv": os.path.join(dataset_dir, "meta.csv")
+    "eval_meta_csv": os.path.join(dataset_dir, "meta.csv"),
+    "logits_file": os.path.join("predictions","904bkzkq", "logits.pt")
     # "eval_dir": os.path.join(dataset_dir, "TAU-urban-acoustic-scenes-2024-mobile-evaluation"), 
     # "eval_meta_csv": os.path.join(dataset_dir,  "TAU-urban-acoustic-scenes-2024-mobile-evaluation", "meta.csv")
 }
 
+class AddLogitsDataset(TorchDataset):
+    """A dataset that loads and adds teacher logits to audio samples.
+    """
 
+    def __init__(self, dataset, map_indices, logits_file, temperature=2):
+        """
+        @param dataset: dataset to load data from
+        @param map_indices: used to get correct indices in list of logits
+        @param logits_file: logits file to load the teacher logits from
+        @param temperature: used in Knowledge Distillation, change distribution of predictions
+        return: x, file name, label, device, city, logits
+        """
+        self.dataset = dataset
+        if not os.path.isfile(logits_file):
+            print("Verify existence of teacher predictions.")
+            raise SystemExit
+        logits = torch.load(logits_file).float()
+        self.logits = logits
+        # self.logits = F.log_softmax(logits / temperature, dim=-1)
+        self.map_indices = map_indices
+
+    def __getitem__(self, index):
+        x, file, label, device, city = self.dataset[index]
+        return x, file, label, device, city, self.logits[self.map_indices[index]]
+
+    def __len__(self):
+        return len(self.dataset)
+    
 class BasicDCASE24Dataset(TorchDataset):
     """
     Basic DCASE'24 Dataset: loads data from files
@@ -106,6 +135,7 @@ def get_training_set(split=100, roll=False):
         print(f"Downloading file: {subset_fname}")
         download_url_to_file(subset_csv_url, subset_split_file)
     ds = get_base_training_set(dataset_config['meta_csv'], subset_split_file)
+    
     if roll:
         ds = RollDataset(ds, shift_range=roll)
     return ds
@@ -117,6 +147,7 @@ def get_base_training_set(meta_csv, train_files_csv):
     train_subset_indices = list(meta[meta['filename'].isin(train_files)].index)
     ds = SimpleSelectionDataset(BasicDCASE24Dataset(meta_csv),
                                 train_subset_indices)
+    ds = AddLogitsDataset(ds, train_subset_indices, dataset_config['logits_file'])
     return ds
 
 

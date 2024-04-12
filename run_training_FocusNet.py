@@ -9,7 +9,7 @@ import transformers
 import wandb
 import json
 
-from dataset.dcase24 import get_training_set, get_test_set, get_eval_set
+from dataset.dcase24_dev import get_training_set, get_test_set, get_eval_set
 from helpers.init import worker_init_fn
 from models.baseline import get_model
 from helpers.utils import mixstyle
@@ -124,7 +124,7 @@ class PLModule(pl.LightningModule):
         :param batch_idx
         :return: loss to update model parameters
         """
-        x, files, labels, devices, cities = train_batch
+        x, files, labels, devices, cities, teacher_logits = train_batch
         x = self.mel_forward(x)  # we convert the raw audio signals into log mel spectrograms
         labels = labels.type(torch.LongTensor)
         labels = labels.to(device=x.device)
@@ -132,14 +132,19 @@ class PLModule(pl.LightningModule):
             # frequency mixstyle
             x = mixstyle(x, self.config.mixstyle_p, self.config.mixstyle_alpha)
         y_hat = self.model(x.cuda()) # This is the logit
-# At this point we want to perform FocusNet loss instead      
-
-
-
-
+        # At this point we want to perform FocusNet loss instead      
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
-        loss = samples_loss.mean()
-
+        cce_loss = samples_loss.mean()
+        dt = F.softmax(y_hat, -1) - F.softmax(teacher_logits, -1)
+        loss_cls = F.cross_entropy(y_hat+dt,labels, reduction="none")
+        # print(labels)
+        one_hot_labels = F.one_hot(labels, num_classes=10)
+        multi_warm_lb = F.softmax(teacher_logits/2, -1) > 1.0/teacher_logits.size(-1)   # eqn(4)
+        multi_warm_lb = torch.clamp(multi_warm_lb.double() + one_hot_labels, 0, 1)              # eqn(5)
+        multi_warm_lb = multi_warm_lb/torch.sum(multi_warm_lb, -1, keepdim = True)                # eqn(6)
+        R_attention = F.cross_entropy(y_hat, multi_warm_lb.detach(), reduction = "none")          # eqn(10)
+        loss = loss_cls + R_attention - cce_loss
+        loss = loss.mean()
         self.log("lr", self.trainer.optimizers[0].param_groups[0]['lr'])
         self.log("epoch", self.current_epoch)
         self.log("train/loss", loss.detach().cpu())
@@ -477,7 +482,7 @@ if __name__ == '__main__':
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="Baseline")
+    parser.add_argument('--experiment_name', type=str, default="FocusNet")
     parser.add_argument('--num_workers', type=int, default=8)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 
@@ -501,10 +506,12 @@ if __name__ == '__main__':
     # training
     parser.add_argument('--n_epochs', type=int, default=150)
     parser.add_argument('--batch_size', type=int, default=256)
-    parser.add_argument('--mixstyle_p', type=float, default=0.4)  # frequency mixstyle
+    parser.add_argument('--mixstyle_p', type=float, default=0)
+    # parser.add_argument('--mixstyle_p', type=float, default=0.4)  # frequency mixstyle
     parser.add_argument('--mixstyle_alpha', type=float, default=0.3)
     parser.add_argument('--weight_decay', type=float, default=0.0001)
-    parser.add_argument('--roll_sec', type=int, default=0.1)  # roll waveform over time
+    parser.add_argument('--roll_sec', type=int, default=0)
+    # parser.add_argument('--roll_sec', type=int, default=0.1)  # roll waveform over time
 
     # peak learning rate (in cosinge schedule)
     parser.add_argument('--lr', type=float, default=0.005)
@@ -516,7 +523,8 @@ if __name__ == '__main__':
     parser.add_argument('--hop_length', type=int, default=500)  # in samples (corresponds to ~16 ms)
     parser.add_argument('--n_fft', type=int, default=4096)  # length (points) of fft, e.g. 4096 point FFT
     parser.add_argument('--n_mels', type=int, default=256)  # number of mel bins
-    parser.add_argument('--freqm', type=int, default=48)  # mask up to 'freqm' spectrogram bins
+    parser.add_argument('--freqm', type=int, default=48)
+    # parser.add_argument('--freqm', type=int, default=48)  # mask up to 'freqm' spectrogram bins
     parser.add_argument('--timem', type=int, default=0)  # mask up to 'timem' spectrogram frames
     parser.add_argument('--f_min', type=int, default=0)  # mel bins are created for freqs. between 'f_min' and 'f_max'
     parser.add_argument('--f_max', type=int, default=None)
