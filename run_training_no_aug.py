@@ -9,18 +9,13 @@ import transformers
 import wandb
 import json
 
-from dataset.dcase24_dev import get_training_set, get_test_set, get_eval_set
+from dataset.dcase24 import get_training_set, get_test_set, get_eval_set
 from helpers.init import worker_init_fn
 from models.baseline import get_model
 from helpers.utils import mixstyle
 from helpers import nessi
 
 torch.set_float32_matmul_precision("high")
-
-## In FocusNet, we need a baseline or it's logits to adjust the weighting of the loss for student logits.
-## We load logits from a .pt file by calling logits = torch.load(logits).float()
-
-
 class PLModule(pl.LightningModule):
     def __init__(self, config):
         super().__init__()
@@ -55,7 +50,7 @@ class PLModule(pl.LightningModule):
             freqm,
             timem
         )
-        
+
         # the baseline model
         self.model = get_model(n_classes=config.n_classes,
                                in_channels=config.in_channels,
@@ -124,27 +119,17 @@ class PLModule(pl.LightningModule):
         :param batch_idx
         :return: loss to update model parameters
         """
-        x, files, labels, devices, cities, teacher_logits = train_batch
+        x, files, labels, devices, cities = train_batch
         x = self.mel_forward(x)  # we convert the raw audio signals into log mel spectrograms
         labels = labels.type(torch.LongTensor)
         labels = labels.to(device=x.device)
         if self.config.mixstyle_p > 0:
             # frequency mixstyle
             x = mixstyle(x, self.config.mixstyle_p, self.config.mixstyle_alpha)
-        y_hat = self.model(x.cuda()) # This is the logit
-        # At this point we want to perform FocusNet loss instead      
+        y_hat = self.model(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
-        cce_loss = samples_loss.mean()
-        dt = F.softmax(y_hat, -1) - F.softmax(teacher_logits, -1)
-        loss_cls = F.cross_entropy(y_hat+dt,labels, reduction="none")
-        # print(labels)
-        one_hot_labels = F.one_hot(labels, num_classes=10)
-        multi_warm_lb = F.softmax(teacher_logits/2, -1) > 1.0/teacher_logits.size(-1)   # eqn(4)
-        multi_warm_lb = torch.clamp(multi_warm_lb.double() + one_hot_labels, 0, 1)              # eqn(5)
-        multi_warm_lb = multi_warm_lb/torch.sum(multi_warm_lb, -1, keepdim = True)                # eqn(6)
-        R_attention = F.cross_entropy(y_hat, multi_warm_lb.detach(), reduction = "none")          # eqn(10)
-        loss = loss_cls + R_attention - cce_loss
-        loss = loss.mean()
+        loss = samples_loss.mean()
+
         self.log("lr", self.trainer.optimizers[0].param_groups[0]['lr'])
         self.log("epoch", self.current_epoch)
         self.log("train/loss", loss.detach().cpu())
@@ -242,7 +227,7 @@ class PLModule(pl.LightningModule):
         # maximum memory allowance for parameters: 128 KB
         # baseline has 61148 parameters -> we can afford 16-bit precision
         # since 61148 * 16 bit ~ 122 kB
-
+        
         # assure fp16
         self.model.half()
         x = self.mel_forward(x)
@@ -482,7 +467,7 @@ if __name__ == '__main__':
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="FocusNet")
+    parser.add_argument('--experiment_name', type=str, default="Baseline_no_aug")
     parser.add_argument('--num_workers', type=int, default=8)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 
