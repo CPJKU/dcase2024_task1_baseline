@@ -18,7 +18,28 @@ def initialize_weights(m):
         if m.bias is not None:
             nn.init.zeros_(m.bias)
 
+class GRN(nn.Module):
+    """
+    global response normalization as introduced in https://arxiv.org/pdf/2301.00808.pdf
+    """
 
+    def __init__(self):
+        super().__init__()
+        self.gamma = nn.Parameter(torch.zeros(1))
+        self.beta = nn.Parameter(torch.zeros(1))
+
+        # self.quant = QuantStub()
+        # self.dequant = DeQuantStub()
+
+    def forward(self, x):
+        # dequantize and quantize since torch.norm not implemented for quantized tensors
+        # x = self.dequant(x)
+        gx = torch.norm(x, p=2, dim=(2, 3), keepdim=True)
+        nx = gx / (gx.mean(dim=1, keepdim=True) + 1e-6)
+
+        x = self.gamma * (x * nx) + self.beta + x
+        return x
+    
 class Block(nn.Module):
     def __init__(
             self,
@@ -60,6 +81,7 @@ class Block(nn.Module):
                                          activation_layer=None,
                                          inplace=False
                                          )
+        self.after_block_norm = GRN()
         self.after_block_activation = nn.ReLU()
 
         if in_channels == out_channels:

@@ -9,7 +9,7 @@ import transformers
 import wandb
 import json
 
-from dataset.dcase24_dev import get_training_set, get_test_set, get_eval_set
+from dataset.dcase24 import get_training_set, get_test_set, get_eval_set
 from helpers.init import worker_init_fn
 from models.baseline import get_model
 from helpers.utils import mixstyle
@@ -382,7 +382,7 @@ def evaluate(config):
     from sklearn import preprocessing
     import pandas as pd
     import torch.nn.functional as F
-    from dataset.dcase24_dev import dataset_config
+    from dataset.dcase24 import dataset_config
 
     assert config.ckpt_id is not None, "A value for argument 'ckpt_id' must be provided."
     ckpt_dir = os.path.join(config.project_name, config.ckpt_id, "checkpoints")
@@ -427,11 +427,11 @@ def evaluate(config):
     info = {}
     info['MACs'] = macs
     info['Params'] = params
-    # res = trainer.test(pl_module, test_dl)
-    # info['test'] = res
+    res = trainer.test(pl_module, test_dl)
+    info['test'] = res
 
     # generate predictions on evaluation set
-    eval_dl = DataLoader(dataset=get_eval_set(), 
+    eval_dl = DataLoader(dataset=get_eval_set(),
                          worker_init_fn=worker_init_fn,
                          num_workers=config.num_workers,
                          batch_size=config.batch_size)
@@ -441,8 +441,7 @@ def evaluate(config):
     all_files = [item[len("audio/"):] for files, _ in predictions for item in files]
     # all predictions
     all_predictions = torch.cat([torch.as_tensor(p) for _, p in predictions], 0)
-    raw_logits = torch.save(all_predictions, os.path.join(out_dir,"logits.pt"))
-    all_predictions = F.softmax(all_predictions.float(), dim=1)
+    all_predictions = F.softmax(all_predictions, dim=1)
 
     # write eval set predictions to csv file
     df = pd.read_csv(dataset_config['meta_csv'], sep="\t")
@@ -462,12 +461,13 @@ def evaluate(config):
     with open(os.path.join(out_dir, "info.json"), "w") as json_file:
         json.dump(info, json_file)
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='DCASE 24 argument parser')
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="FocusNet")
+    parser.add_argument('--experiment_name', type=str, default="Baseline_no_aug")
     parser.add_argument('--num_workers', type=int, default=8)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 
