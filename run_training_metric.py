@@ -156,7 +156,7 @@ class PLModule(pl.LightningModule):
         x, files, labels, devices, cities = val_batch
         labels = labels.type(torch.LongTensor)
         labels = labels.to(device=x.device)
-        y_hat = self.forward(x.cuda())
+        y_hat, embedding = self.forward(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
 
         # for computing accuracy
