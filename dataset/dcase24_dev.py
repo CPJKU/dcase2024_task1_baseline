@@ -116,9 +116,9 @@ class RollDataset(TorchDataset):
         self.axis = axis
 
     def __getitem__(self, index):
-        x, file, label, device, city = self.dataset[index]
+        x, file, label, device, city, logits = self.dataset[index]
         sf = int(np.random.random_integers(-self.shift_range, self.shift_range))
-        return x.roll(sf, self.axis), file, label, device, city
+        return x.roll(sf, self.axis), file, label, device, city, logits
 
     def __len__(self):
         return len(self.dataset)

@@ -8,8 +8,11 @@ import torch.nn.functional as F
 import transformers
 import wandb
 import json
-
-from dataset.dcase24 import get_training_set, get_test_set, get_eval_set
+import pytorch_metric_learning
+from pytorch_metric_learning import distances, losses, miners, reducers, testers, utils
+from pytorch_metric_learning.utils import loss_and_miner_utils as lmu
+from wandb import AlertLevel
+from dataset.dcase24_dev import get_training_set, get_test_set, get_eval_set
 from helpers.init import worker_init_fn
 from models.baseline import get_model
 from helpers.utils import mixstyle
@@ -119,6 +122,16 @@ class PLModule(pl.LightningModule):
         :param batch_idx
         :return: loss to update model parameters
         """
+        ### pytorch-metric-learning stuff ###
+        reducer = reducers.ThresholdReducer(low=0)
+        loss_func = losses.ContrastiveLoss(pos_margin=0, neg_margin=1, distance=distances.LpDistance(p=2))
+    
+        ### No mining for now
+        # mining_func = miners.TripletMarginMiner(
+        #     margin=0.2, distance=distance, type_of_triplets="semihard"
+        # )
+        # accuracy_calculator = AccuracyCalculator(include=("precision_at_1",),exclude=("knn_func"), k=1)
+        
         x, files, labels, devices, cities = train_batch
         x = self.mel_forward(x)  # we convert the raw audio signals into log mel spectrograms
         labels = labels.type(torch.LongTensor)
@@ -128,7 +141,8 @@ class PLModule(pl.LightningModule):
             x = mixstyle(x, self.config.mixstyle_p, self.config.mixstyle_alpha)
         y_hat, embedding = self.model(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
-        loss = samples_loss.mean()
+        metric_loss = loss_func(embedding,labels)
+        loss = samples_loss.mean() + metric_loss
 
         self.log("lr", self.trainer.optimizers[0].param_groups[0]['lr'])
         self.log("epoch", self.current_epoch)
@@ -142,7 +156,7 @@ class PLModule(pl.LightningModule):
         x, files, labels, devices, cities = val_batch
         labels = labels.type(torch.LongTensor)
         labels = labels.to(device=x.device)
-        y_hat, embedding= self.forward(x.cuda())
+        y_hat, embedding = self.forward(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
 
         # for computing accuracy
@@ -178,6 +192,7 @@ class PLModule(pl.LightningModule):
 
     def on_validation_epoch_end(self):
         # convert a list of dicts to a flattened dict
+        threshold = 0.35
         outputs = {k: [] for k in self.validation_step_outputs[0]}
         for step_output in self.validation_step_outputs:
             for k in step_output:
@@ -187,7 +202,13 @@ class PLModule(pl.LightningModule):
 
         avg_loss = outputs['loss'].mean()
         acc = sum(outputs['n_correct']) * 1.0 / sum(outputs['n_pred'])
-
+        if acc < threshold:
+             wandb.alert(
+            title="Low accuracy",
+            text=f"Accuracy {acc} is below the acceptable threshold {threshold}",
+            level=AlertLevel.WARN,
+            wait_duration=1800,
+        )
         logs = {'acc': acc, 'loss': avg_loss}
 
         # log metric per device and scene
@@ -232,7 +253,7 @@ class PLModule(pl.LightningModule):
         self.model.half()
         x = self.mel_forward(x)
         x = x.half()
-        y_hat,embedding = self.model(x.cuda())
+        y_hat = self.model(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
 
         # for computing accuracy
@@ -467,7 +488,7 @@ if __name__ == '__main__':
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="Baseline_DSP_sub10_1")
+    parser.add_argument('--experiment_name', type=str, default="Baseline_DSP_contrastive_1")
     parser.add_argument('--num_workers', type=int, default=8)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 
@@ -478,7 +499,7 @@ if __name__ == '__main__':
     # dataset
     # subset in {100, 50, 25, 10, 5}
     parser.add_argument('--orig_sample_rate', type=int, default=44100)
-    parser.add_argument('--subset', type=int, default=10)
+    parser.add_argument('--subset', type=int, default=50)
 
     # model
     parser.add_argument('--n_classes', type=int, default=10)  # classification model with 'n_classes' output neurons

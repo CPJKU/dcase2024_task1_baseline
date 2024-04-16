@@ -467,7 +467,7 @@ if __name__ == '__main__':
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="Baseline")
+    parser.add_argument('--experiment_name', type=str, default="FocusNet")
     parser.add_argument('--num_workers', type=int, default=8)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 
@@ -491,10 +491,12 @@ if __name__ == '__main__':
     # training
     parser.add_argument('--n_epochs', type=int, default=150)
     parser.add_argument('--batch_size', type=int, default=256)
-    parser.add_argument('--mixstyle_p', type=float, default=0.4)  # frequency mixstyle
+    parser.add_argument('--mixstyle_p', type=float, default=0)
+    # parser.add_argument('--mixstyle_p', type=float, default=0.4)  # frequency mixstyle
     parser.add_argument('--mixstyle_alpha', type=float, default=0.3)
     parser.add_argument('--weight_decay', type=float, default=0.0001)
-    parser.add_argument('--roll_sec', type=int, default=0.1)  # roll waveform over time
+    parser.add_argument('--roll_sec', type=int, default=0)
+    # parser.add_argument('--roll_sec', type=int, default=0.1)  # roll waveform over time
 
     # peak learning rate (in cosinge schedule)
     parser.add_argument('--lr', type=float, default=0.005)
@@ -506,7 +508,8 @@ if __name__ == '__main__':
     parser.add_argument('--hop_length', type=int, default=500)  # in samples (corresponds to ~16 ms)
     parser.add_argument('--n_fft', type=int, default=4096)  # length (points) of fft, e.g. 4096 point FFT
     parser.add_argument('--n_mels', type=int, default=256)  # number of mel bins
-    parser.add_argument('--freqm', type=int, default=48)  # mask up to 'freqm' spectrogram bins
+    parser.add_argument('--freqm', type=int, default=0)
+    # parser.add_argument('--freqm', type=int, default=48)  # mask up to 'freqm' spectrogram bins
     parser.add_argument('--timem', type=int, default=0)  # mask up to 'timem' spectrogram frames
     parser.add_argument('--f_min', type=int, default=0)  # mel bins are created for freqs. between 'f_min' and 'f_max'
     parser.add_argument('--f_max', type=int, default=None)
