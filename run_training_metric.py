@@ -124,7 +124,7 @@ class PLModule(pl.LightningModule):
         """
         ### pytorch-metric-learning stuff ###
         reducer = reducers.ThresholdReducer(low=0)
-        loss_func = losses.ContrastiveLoss(pos_margin=0, neg_margin=1, distance=distances.LpDistance(p=1))
+        loss_func = losses.ContrastiveLoss(pos_margin=0, neg_margin=1, distance=distances.LpDistance(p=2))
     
         ### No mining for now
         # mining_func = miners.TripletMarginMiner(
@@ -488,7 +488,7 @@ if __name__ == '__main__':
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="Baseline_50")
+    parser.add_argument('--experiment_name', type=str, default="Baseline_DSP_contrastive_1")
     parser.add_argument('--num_workers', type=int, default=8)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 

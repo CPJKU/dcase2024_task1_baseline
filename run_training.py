@@ -126,7 +126,7 @@ class PLModule(pl.LightningModule):
         if self.config.mixstyle_p > 0:
             # frequency mixstyle
             x = mixstyle(x, self.config.mixstyle_p, self.config.mixstyle_alpha)
-        y_hat = self.model(x.cuda())
+        y_hat, embedding = self.model(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
         loss = samples_loss.mean()
 
@@ -142,7 +142,7 @@ class PLModule(pl.LightningModule):
         x, files, labels, devices, cities = val_batch
         labels = labels.type(torch.LongTensor)
         labels = labels.to(device=x.device)
-        y_hat = self.forward(x.cuda())
+        y_hat, embedding= self.forward(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
 
         # for computing accuracy
@@ -232,7 +232,7 @@ class PLModule(pl.LightningModule):
         self.model.half()
         x = self.mel_forward(x)
         x = x.half()
-        y_hat = self.model(x.cuda())
+        y_hat,embedding = self.model(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
 
         # for computing accuracy
