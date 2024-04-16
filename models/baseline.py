@@ -201,9 +201,10 @@ class Network(nn.Module):
 
     def forward(self, x):
         x = self._forward_conv(x)
+        embedding = x
         x = self.feed_forward(x)
         logits = x.squeeze(2).squeeze(2)
-        return logits
+        return logits, embedding
 
 
 def get_model(n_classes=10, in_channels=1, base_channels=32, channels_multiplier=2.3, expansion_rate=3.0,
