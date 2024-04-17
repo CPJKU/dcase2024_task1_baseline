@@ -21,7 +21,7 @@ dataset_config = {
     "test_split_csv": "test.csv",
     "eval_dir": os.path.join(dataset_dir), 
     "eval_meta_csv": os.path.join(dataset_dir, "meta.csv"),
-    "logits_file": os.path.join("predictions","904bkzkq", "logits.pt")
+    "logits_file": os.path.join("predictions","1ea864zz", "logits.pt")
     # "eval_dir": os.path.join(dataset_dir, "TAU-urban-acoustic-scenes-2024-mobile-evaluation"), 
     # "eval_meta_csv": os.path.join(dataset_dir,  "TAU-urban-acoustic-scenes-2024-mobile-evaluation", "meta.csv")
 }
