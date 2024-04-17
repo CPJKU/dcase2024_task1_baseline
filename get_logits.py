@@ -142,7 +142,7 @@ class PLModule(pl.LightningModule):
         x, files, labels, devices, cities = val_batch
         labels = labels.type(torch.LongTensor)
         labels = labels.to(device=x.device)
-        y_hat = self.forward(x.cuda())
+        y_hat= self.forward(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
 
         # for computing accuracy
@@ -382,7 +382,7 @@ def evaluate(config):
     from sklearn import preprocessing
     import pandas as pd
     import torch.nn.functional as F
-    from dataset.dcase24_dev import dataset_config
+    from dataset.dcase24 import dataset_config
 
     assert config.ckpt_id is not None, "A value for argument 'ckpt_id' must be provided."
     ckpt_dir = os.path.join(config.project_name, config.ckpt_id, "checkpoints")
@@ -427,11 +427,11 @@ def evaluate(config):
     info = {}
     info['MACs'] = macs
     info['Params'] = params
-    # res = trainer.test(pl_module, test_dl)
-    # info['test'] = res
+    res = trainer.test(pl_module, test_dl)
+    info['test'] = res
 
     # generate predictions on evaluation set
-    eval_dl = DataLoader(dataset=get_eval_set(), 
+    eval_dl = DataLoader(dataset=get_eval_set(),
                          worker_init_fn=worker_init_fn,
                          num_workers=config.num_workers,
                          batch_size=config.batch_size)
@@ -441,7 +441,6 @@ def evaluate(config):
     all_files = [item[len("audio/"):] for files, _ in predictions for item in files]
     # all predictions
     all_predictions = torch.cat([torch.as_tensor(p) for _, p in predictions], 0)
-    raw_logits = torch.save(all_predictions, os.path.join(out_dir,"logits.pt"))
     all_predictions = F.softmax(all_predictions.float(), dim=1)
 
     # write eval set predictions to csv file
@@ -462,12 +461,13 @@ def evaluate(config):
     with open(os.path.join(out_dir, "info.json"), "w") as json_file:
         json.dump(info, json_file)
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='DCASE 24 argument parser')
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="Baseline_sub5")
+    parser.add_argument('--experiment_name', type=str, default="Baseline_DSP_sub5_eval")
     parser.add_argument('--num_workers', type=int, default=8)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 
@@ -478,7 +478,7 @@ if __name__ == '__main__':
     # dataset
     # subset in {100, 50, 25, 10, 5}
     parser.add_argument('--orig_sample_rate', type=int, default=44100)
-    parser.add_argument('--subset', type=int, default=5)
+    parser.add_argument('--subset', type=int, default=100)
 
     # model
     parser.add_argument('--n_classes', type=int, default=10)  # classification model with 'n_classes' output neurons
@@ -491,11 +491,9 @@ if __name__ == '__main__':
     # training
     parser.add_argument('--n_epochs', type=int, default=150)
     parser.add_argument('--batch_size', type=int, default=256)
-    parser.add_argument('--mixstyle_p', type=float, default=0)
     parser.add_argument('--mixstyle_p', type=float, default=0.4)  # frequency mixstyle
     parser.add_argument('--mixstyle_alpha', type=float, default=0.3)
     parser.add_argument('--weight_decay', type=float, default=0.0001)
-    # parser.add_argument('--roll_sec', type=int, default=0)
     parser.add_argument('--roll_sec', type=int, default=0.1)  # roll waveform over time
 
     # peak learning rate (in cosinge schedule)
@@ -508,7 +506,6 @@ if __name__ == '__main__':
     parser.add_argument('--hop_length', type=int, default=500)  # in samples (corresponds to ~16 ms)
     parser.add_argument('--n_fft', type=int, default=4096)  # length (points) of fft, e.g. 4096 point FFT
     parser.add_argument('--n_mels', type=int, default=256)  # number of mel bins
-    # parser.add_argument('--freqm', type=int, default=0)
     parser.add_argument('--freqm', type=int, default=48)  # mask up to 'freqm' spectrogram bins
     parser.add_argument('--timem', type=int, default=0)  # mask up to 'timem' spectrogram frames
     parser.add_argument('--f_min', type=int, default=0)  # mel bins are created for freqs. between 'f_min' and 'f_max'

@@ -126,7 +126,7 @@ class PLModule(pl.LightningModule):
         if self.config.mixstyle_p > 0:
             # frequency mixstyle
             x = mixstyle(x, self.config.mixstyle_p, self.config.mixstyle_alpha)
-        y_hat, embedding = self.model(x.cuda())
+        y_hat = self.model(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
         loss = samples_loss.mean()
 
@@ -142,7 +142,7 @@ class PLModule(pl.LightningModule):
         x, files, labels, devices, cities = val_batch
         labels = labels.type(torch.LongTensor)
         labels = labels.to(device=x.device)
-        y_hat, embedding= self.forward(x.cuda())
+        y_hat= self.forward(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
 
         # for computing accuracy
@@ -232,7 +232,7 @@ class PLModule(pl.LightningModule):
         self.model.half()
         x = self.mel_forward(x)
         x = x.half()
-        y_hat,embedding = self.model(x.cuda())
+        y_hat = self.model(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
 
         # for computing accuracy
@@ -441,7 +441,7 @@ def evaluate(config):
     all_files = [item[len("audio/"):] for files, _ in predictions for item in files]
     # all predictions
     all_predictions = torch.cat([torch.as_tensor(p) for _, p in predictions], 0)
-    all_predictions = F.softmax(all_predictions, dim=1)
+    all_predictions = F.softmax(all_predictions.float(), dim=1)
 
     # write eval set predictions to csv file
     df = pd.read_csv(dataset_config['meta_csv'], sep="\t")
