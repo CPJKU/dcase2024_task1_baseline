@@ -14,7 +14,7 @@ from pytorch_metric_learning.utils import loss_and_miner_utils as lmu
 from wandb import AlertLevel
 from dataset.dcase24 import get_training_set, get_test_set, get_eval_set
 from helpers.init import worker_init_fn
-from models.baseline import get_model
+from models.baseline_metric import get_model
 from helpers.utils import mixstyle
 from helpers import nessi
 
@@ -141,7 +141,7 @@ class PLModule(pl.LightningModule):
             x = mixstyle(x, self.config.mixstyle_p, self.config.mixstyle_alpha)
         y_hat, embedding = self.model(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
-        metric_loss = loss_func(embedding,labels)
+        metric_loss = loss_func(embedding, labels)
         loss = samples_loss.mean() + metric_loss
 
         self.log("lr", self.trainer.optimizers[0].param_groups[0]['lr'])
@@ -153,12 +153,14 @@ class PLModule(pl.LightningModule):
         pass
 
     def validation_step(self, val_batch, batch_idx):
+        loss_func = losses.ContrastiveLoss(pos_margin=0, neg_margin=1, distance=distances.LpDistance(p=2))
         x, files, labels, devices, cities = val_batch
         labels = labels.type(torch.LongTensor)
         labels = labels.to(device=x.device)
         y_hat, embedding = self.forward(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
-
+        metric_loss = loss_func(embedding, labels)
+        loss = samples_loss.mean() + metric_loss
         # for computing accuracy
         _, preds = torch.max(y_hat, dim=1)
         n_correct_per_sample = (preds == labels)
@@ -174,7 +176,7 @@ class PLModule(pl.LightningModule):
             results["devcnt." + d] = torch.as_tensor(0., device=self.device)
             results["devn_correct." + d] = torch.as_tensor(0., device=self.device)
         for i, d in enumerate(dev_names):
-            results["devloss." + d] = results["devloss." + d] + samples_loss[i]
+            results["devloss." + d] = results["devloss." + d] + loss.item()
             results["devn_correct." + d] = results["devn_correct." + d] + n_correct_per_sample[i]
             results["devcnt." + d] = results["devcnt." + d] + 1
 
@@ -183,7 +185,7 @@ class PLModule(pl.LightningModule):
             results["lblcnt." + l] = torch.as_tensor(0., device=self.device)
             results["lbln_correct." + l] = torch.as_tensor(0., device=self.device)
         for i, l in enumerate(labels):
-            results["lblloss." + self.label_ids[l]] = results["lblloss." + self.label_ids[l]] + samples_loss[i]
+            results["lblloss." + self.label_ids[l]] = results["lblloss." + self.label_ids[l]] + loss.item()
             results["lbln_correct." + self.label_ids[l]] = \
                 results["lbln_correct." + self.label_ids[l]] + n_correct_per_sample[i]
             results["lblcnt." + self.label_ids[l]] = results["lblcnt." + self.label_ids[l]] + 1
@@ -253,7 +255,7 @@ class PLModule(pl.LightningModule):
         self.model.half()
         x = self.mel_forward(x)
         x = x.half()
-        y_hat = self.model(x.cuda())
+        y_hat, embedding = self.model(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
 
         # for computing accuracy
@@ -338,7 +340,7 @@ class PLModule(pl.LightningModule):
 
         x = self.mel_forward(x)
         x = x.half()
-        y_hat = self.model(x)
+        y_hat, embedding = self.model(x)
 
         return files, y_hat
 

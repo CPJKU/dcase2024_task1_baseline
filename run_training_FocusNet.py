@@ -131,7 +131,7 @@ class PLModule(pl.LightningModule):
         if self.config.mixstyle_p > 0:
             # frequency mixstyle
             x = mixstyle(x, self.config.mixstyle_p, self.config.mixstyle_alpha)
-        y_hat, embedding = self.model(x.cuda()) # This is the outputs
+        y_hat = self.model(x.cuda()) # This is the outputs
         # At this point we want to perform FocusNet loss instead      
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
         cce_loss = samples_loss.mean()
@@ -157,7 +157,7 @@ class PLModule(pl.LightningModule):
         x, files, labels, devices, cities = val_batch
         labels = labels.type(torch.LongTensor)
         labels = labels.to(device=x.device)
-        y_hat, embedding = self.forward(x.cuda())
+        y_hat = self.forward(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
 
         # for computing accuracy
@@ -247,7 +247,7 @@ class PLModule(pl.LightningModule):
         self.model.half()
         x = self.mel_forward(x)
         x = x.half()
-        y_hat, embedding = self.model(x.cuda())
+        y_hat = self.model(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
 
         # for computing accuracy
@@ -482,7 +482,7 @@ if __name__ == '__main__':
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="FocusNet_Ali1_aug5")
+    parser.add_argument('--experiment_name', type=str, default="FocusNet_Ali2_aug5")
     parser.add_argument('--num_workers', type=int, default=8)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 
