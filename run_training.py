@@ -366,13 +366,14 @@ def train(config):
                          devices=1,
                          num_sanity_val_steps=0,
                          precision=config.precision,
-                         callbacks=[pl.callbacks.ModelCheckpoint(save_last=True)])
+                         callbacks=[pl.callbacks.ModelCheckpoint(save_last=True, monitor = "val/loss",save_top_k=1)]
+                         )
     # start training and validation for the specified number of epochs
     trainer.fit(pl_module, train_dl, test_dl)
 
     # final test step
     # here: use the validation split
-    trainer.test(ckpt_path='last', dataloaders=test_dl)
+    trainer.test(ckpt_path='best', dataloaders=test_dl)
 
     wandb.finish()
 
@@ -387,7 +388,8 @@ def evaluate(config):
     assert config.ckpt_id is not None, "A value for argument 'ckpt_id' must be provided."
     ckpt_dir = os.path.join(config.project_name, config.ckpt_id, "checkpoints")
     assert os.path.exists(ckpt_dir), f"No such folder: {ckpt_dir}"
-    ckpt_file = os.path.join(ckpt_dir, "last.ckpt")
+    #ckpt_file = os.path.join(ckpt_dir, "last.ckpt")
+    ckpt_file = os.path.join(ckpt_dir, "xyz.ckpt") # Change the path to the model path desired
     assert os.path.exists(ckpt_file), f"No such file: {ckpt_file}. Implement your own mechanism to select" \
                                       f"the desired checkpoint."
 
@@ -467,7 +469,7 @@ if __name__ == '__main__':
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="Baseline_Ali3_sub100_no_roll")
+    parser.add_argument('--experiment_name', type=str, default="Baseline_Ali_test_callbacks")
     parser.add_argument('--num_workers', type=int, default=8)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 
@@ -489,7 +491,7 @@ if __name__ == '__main__':
     parser.add_argument('--expansion_rate', type=float, default=2.1)
 
     # training
-    parser.add_argument('--n_epochs', type=int, default=150)
+    parser.add_argument('--n_epochs', type=int, default=2)
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--mixstyle_p', type=float, default=0.4)  # frequency mixstyle
     parser.add_argument('--mixstyle_alpha', type=float, default=0.3)
