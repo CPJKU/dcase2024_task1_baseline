@@ -519,7 +519,7 @@ if __name__ == '__main__':
 
     # peak learning rate (in cosinge schedule)
     parser.add_argument('--lr', type=float, default=0.005)
-    parser.add_argument('--warmup_steps', type=int, default=2000)
+    parser.add_argument('--warmup_steps', type=int, default=2000) # default = 2000, divide by 20 for 5% subset, 10 for 10%, 4 for 25%, 2 for 50%
 
     # preprocessing
     parser.add_argument('--sample_rate', type=int, default=32000)
