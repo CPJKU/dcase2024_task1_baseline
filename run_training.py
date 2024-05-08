@@ -500,12 +500,14 @@ if __name__ == '__main__':
 
     # peak learning rate (in cosinge schedule)
     parser.add_argument('--lr', type=float, default=0.005)
-    parser.add_argument('--warmup_steps', type=int, default=2000)
+    parser.add_argument('--warmup_steps', type=int, default=100) # default = 2000, divide by 20 for 5% subset, 10 for 10%, 4 for 25%, 2 for 50%
 
     # preprocessing
     parser.add_argument('--sample_rate', type=int, default=44100)
     parser.add_argument('--window_length', type=int, default=3072)  # in samples (corresponds to 96 ms)
+    # parser.add_argument('--window_length', type=int, default=4234)
     parser.add_argument('--hop_length', type=int, default=500)  # in samples (corresponds to ~16 ms)
+    # parser.add_argument('--hop_length', type=int, default=706)
     parser.add_argument('--n_fft', type=int, default=4096)  # length (points) of fft, e.g. 4096 point FFT
     parser.add_argument('--n_mels', type=int, default=256)  # number of mel bins
     parser.add_argument('--freqm', type=int, default=48)  # mask up to 'freqm' spectrogram bins
