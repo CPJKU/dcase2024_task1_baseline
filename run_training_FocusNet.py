@@ -135,16 +135,19 @@ class PLModule(pl.LightningModule):
         # At this point we want to perform FocusNet loss instead      
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
         cce_loss = samples_loss.mean()
+        entropy_loss = F.cross_entropy(y_hat,y_hat, reduction= "none")
         dt = F.softmax(y_hat, -1) - F.softmax(teacher_logits, -1)
-        loss_cls = F.cross_entropy(y_hat+dt,labels, reduction="none")
+        y_d = y_hat + dt
+        loss_cls = F.cross_entropy(y_d,labels, reduction="none")
+        
         # print(labels)
         one_hot_labels = F.one_hot(labels, num_classes=10)
-        multi_warm_lb = F.softmax(teacher_logits/2, -1) > 1.0/teacher_logits.size(-1)   # eqn(4)
-        multi_warm_lb = torch.clamp(multi_warm_lb.double() + one_hot_labels, 0, 1)              # eqn(5)
+        multi_warm_lb = F.softmax(teacher_logits/2, -1) > 1.0/teacher_logits.size(-1)           # eqn(4)* see lab notebook
+        multi_warm_lb = torch.clamp(multi_warm_lb.double() + one_hot_labels, 0, 1)              # eqn(5) .double sets data type to float 64 instead of int 0,1
         multi_warm_lb = multi_warm_lb/torch.sum(multi_warm_lb, -1, keepdim = True)                # eqn(6)
         R_attention = F.cross_entropy(y_hat, multi_warm_lb.detach(), reduction = "none")          # eqn(10)
-        loss = loss_cls + R_attention - cce_loss
-        loss = loss.mean()
+        loss = loss_cls + R_attention - entropy_loss
+        loss = loss.mean() # currently, mean after adding
         self.log("lr", self.trainer.optimizers[0].param_groups[0]['lr'])
         self.log("epoch", self.current_epoch)
         self.log("train/loss", loss.detach().cpu())
