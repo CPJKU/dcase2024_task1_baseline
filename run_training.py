@@ -469,7 +469,7 @@ if __name__ == '__main__':
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="Baseline_Ali_test_callbacks")
+    parser.add_argument('--experiment_name', type=str, default="Baseline_DSP1_sub5_44100_noroll")
     parser.add_argument('--num_workers', type=int, default=8)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 
@@ -480,7 +480,7 @@ if __name__ == '__main__':
     # dataset
     # subset in {100, 50, 25, 10, 5}
     parser.add_argument('--orig_sample_rate', type=int, default=44100)
-    parser.add_argument('--subset', type=int, default=100)
+    parser.add_argument('--subset', type=int, default=5)
 
     # model
     parser.add_argument('--n_classes', type=int, default=10)  # classification model with 'n_classes' output neurons
@@ -491,7 +491,7 @@ if __name__ == '__main__':
     parser.add_argument('--expansion_rate', type=float, default=2.1)
 
     # training
-    parser.add_argument('--n_epochs', type=int, default=2)
+    parser.add_argument('--n_epochs', type=int, default=150)
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--mixstyle_p', type=float, default=0.4)  # frequency mixstyle
     parser.add_argument('--mixstyle_alpha', type=float, default=0.3)
@@ -503,9 +503,11 @@ if __name__ == '__main__':
     parser.add_argument('--warmup_steps', type=int, default=2000)
 
     # preprocessing
-    parser.add_argument('--sample_rate', type=int, default=32000)
+    parser.add_argument('--sample_rate', type=int, default=44100)
     parser.add_argument('--window_length', type=int, default=3072)  # in samples (corresponds to 96 ms)
+    # parser.add_argument('--window_length', type=int, default=4234)
     parser.add_argument('--hop_length', type=int, default=500)  # in samples (corresponds to ~16 ms)
+    # parser.add_argument('--hop_length', type=int, default=706)
     parser.add_argument('--n_fft', type=int, default=4096)  # length (points) of fft, e.g. 4096 point FFT
     parser.add_argument('--n_mels', type=int, default=256)  # number of mel bins
     parser.add_argument('--freqm', type=int, default=48)  # mask up to 'freqm' spectrogram bins
