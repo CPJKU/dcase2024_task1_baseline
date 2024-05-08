@@ -135,16 +135,20 @@ class PLModule(pl.LightningModule):
         # At this point we want to perform FocusNet loss instead      
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
         cce_loss = samples_loss.mean()
+        softmax_y = F.softmax(y_hat,-1)
+        entropy_loss = F.cross_entropy(y_hat,softmax_y, reduction= "none")
         dt = F.softmax(y_hat, -1) - F.softmax(teacher_logits, -1)
-        loss_cls = F.cross_entropy(y_hat+dt,labels, reduction="none")
+        y_d = y_hat + dt
+        loss_cls = F.cross_entropy(y_d,labels, reduction="none")
+        
         # print(labels)
         one_hot_labels = F.one_hot(labels, num_classes=10)
-        multi_warm_lb = F.softmax(teacher_logits/2, -1) > 1.0/teacher_logits.size(-1)   # eqn(4)
-        multi_warm_lb = torch.clamp(multi_warm_lb.double() + one_hot_labels, 0, 1)              # eqn(5)
+        multi_warm_lb = F.softmax(teacher_logits/2, -1) > 1.0/teacher_logits.size(-1)           # eqn(4)* see lab notebook
+        multi_warm_lb = torch.clamp(multi_warm_lb.double() + one_hot_labels, 0, 1)              # eqn(5) .double sets data type to float 64 instead of int 0,1
         multi_warm_lb = multi_warm_lb/torch.sum(multi_warm_lb, -1, keepdim = True)                # eqn(6)
         R_attention = F.cross_entropy(y_hat, multi_warm_lb.detach(), reduction = "none")          # eqn(10)
-        loss = loss_cls + R_attention - cce_loss
-        loss = loss.mean()
+        loss = loss_cls + R_attention - entropy_loss
+        loss = loss.mean() # currently, mean after adding
         self.log("lr", self.trainer.optimizers[0].param_groups[0]['lr'])
         self.log("epoch", self.current_epoch)
         self.log("train/loss", loss.detach().cpu())
@@ -381,7 +385,8 @@ def train(config):
                          devices=1,
                          num_sanity_val_steps=0,
                          precision=config.precision,
-                         callbacks=[pl.callbacks.ModelCheckpoint(save_last=True)])
+                         callbacks=[pl.callbacks.ModelCheckpoint(save_last=True, monitor = "val/loss",save_top_k=1)]
+                         )
     # start training and validation for the specified number of epochs
     trainer.fit(pl_module, train_dl, test_dl)
 
@@ -482,7 +487,7 @@ if __name__ == '__main__':
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="FocusNet_Ali1_aug5")
+    parser.add_argument('--experiment_name', type=str, default="FocusNet_Ali_aug5_new1")
     parser.add_argument('--num_workers', type=int, default=8)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 
@@ -515,7 +520,7 @@ if __name__ == '__main__':
 
     # peak learning rate (in cosinge schedule)
     parser.add_argument('--lr', type=float, default=0.005)
-    parser.add_argument('--warmup_steps', type=int, default=2000)
+    parser.add_argument('--warmup_steps', type=int, default=2000) # default = 2000, divide by 20 for 5% subset, 10 for 10%, 4 for 25%, 2 for 50%
 
     # preprocessing
     parser.add_argument('--sample_rate', type=int, default=32000)
