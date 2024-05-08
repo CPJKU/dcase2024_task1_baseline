@@ -135,7 +135,8 @@ class PLModule(pl.LightningModule):
         # At this point we want to perform FocusNet loss instead      
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
         cce_loss = samples_loss.mean()
-        entropy_loss = F.cross_entropy(y_hat,y_hat, reduction= "none")
+        softmax_y = F.softmax(y_hat,-1)
+        entropy_loss = F.cross_entropy(y_hat,softmax_y, reduction= "none")
         dt = F.softmax(y_hat, -1) - F.softmax(teacher_logits, -1)
         y_d = y_hat + dt
         loss_cls = F.cross_entropy(y_d,labels, reduction="none")
