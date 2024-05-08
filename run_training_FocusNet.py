@@ -381,7 +381,8 @@ def train(config):
                          devices=1,
                          num_sanity_val_steps=0,
                          precision=config.precision,
-                         callbacks=[pl.callbacks.ModelCheckpoint(save_last=True)])
+                         callbacks=[pl.callbacks.ModelCheckpoint(save_last=True, monitor = "val/loss",save_top_k=1)]
+                         )
     # start training and validation for the specified number of epochs
     trainer.fit(pl_module, train_dl, test_dl)
 
@@ -482,7 +483,7 @@ if __name__ == '__main__':
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="FocusNet_Ali1_aug5")
+    parser.add_argument('--experiment_name', type=str, default="FocusNet_Ali_aug5_new1")
     parser.add_argument('--num_workers', type=int, default=8)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 
