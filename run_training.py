@@ -469,7 +469,7 @@ if __name__ == '__main__':
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="Baseline_Ali1_sub5_warmup_scaled")
+    parser.add_argument('--experiment_name', type=str, default="Baseline_Ali1_sub5_tuned")
     parser.add_argument('--num_workers', type=int, default=8)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 
@@ -496,14 +496,14 @@ if __name__ == '__main__':
     parser.add_argument('--mixstyle_p', type=float, default=0.4)  # frequency mixstyle
     parser.add_argument('--mixstyle_alpha', type=float, default=0.3)
     parser.add_argument('--weight_decay', type=float, default=0.0001)
-    parser.add_argument('--roll_sec', type=int, default=0.1)  # roll waveform over time, default = 0.1
+    parser.add_argument('--roll_sec', type=int, default=0)  # roll waveform over time, default = 0.1
 
     # peak learning rate (in cosinge schedule)
     parser.add_argument('--lr', type=float, default=0.005)
     parser.add_argument('--warmup_steps', type=int, default=100) # default = 2000, divide by 20 for 5% subset, 10 for 10%, 4 for 25%, 2 for 50%
 
     # preprocessing
-    parser.add_argument('--sample_rate', type=int, default=32000)
+    parser.add_argument('--sample_rate', type=int, default=44100) #default = 32000
     parser.add_argument('--window_length', type=int, default=3072)  # in samples (corresponds to 96 ms)
     # parser.add_argument('--window_length', type=int, default=4234)
     parser.add_argument('--hop_length', type=int, default=500)  # in samples (corresponds to ~16 ms)
