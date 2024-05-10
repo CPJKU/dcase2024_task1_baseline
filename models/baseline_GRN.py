@@ -108,6 +108,7 @@ class Block(nn.Module):
             x = self.block(x) + self.shortcut(x)
         else:
             x = self.block(x)
+        x = self.after_block_norm = GRN()
         x = self.after_block_activation(x)
         return x
 
