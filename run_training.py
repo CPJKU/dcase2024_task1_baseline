@@ -469,7 +469,11 @@ if __name__ == '__main__':
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
+<<<<<<< HEAD
     parser.add_argument('--experiment_name', type=str, default="GRN_Ali1_sub5_tuned_noworkers")
+=======
+    parser.add_argument('--experiment_name', type=str, default="Baseline_DSP1_sub5_tuned_noworkers")
+>>>>>>> a63e3e6ad48e489312890b743cbfe9eaa1328957
     parser.add_argument('--num_workers', type=int, default=0)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 
