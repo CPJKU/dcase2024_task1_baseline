@@ -9,6 +9,7 @@ from torch.hub import download_url_to_file
 import numpy as np
 
 dataset_dir = "D:\Sean\DCASE\datasets\Extract_to_Folder\TAU-urban-acoustic-scenes-2022-mobile-development"
+wave_dir =  r"D:\Sean\DCASE\datasets\Extract_to_Folder\TAU-urban-acoustic-scenes-2022-mobile-development\logmel_np"
 assert dataset_dir is not None, "Specify 'TAU Urban Acoustic Scenes 2022 Mobile dataset' location in variable " \
                                 "'dataset_dir'. The dataset can be downloaded from this URL:" \
                                 " https://zenodo.org/record/6337421"
@@ -72,8 +73,8 @@ class BasicDCASE24Dataset(TorchDataset):
         self.files = df[['filename']].values.reshape(-1)
 
     def __getitem__(self, index):
-        sig, _ = torchaudio.load(os.path.join(dataset_dir, self.files[index]))
-        return sig, self.files[index], self.labels[index], self.devices[index], self.cities[index]
+        X = np.load(os.path.join(wave_dir, self.files[index],'.npy')) # Assuming waveforms are stored as .npy files
+        return X, self.files[index], self.labels[index], self.devices[index], self.cities[index]
 
     def __len__(self):
         return len(self.files)
@@ -187,8 +188,8 @@ class BasicDCASE24EvalDataset(TorchDataset):
         self.eval_dir = eval_dir
 
     def __getitem__(self, index):
-        sig, _ = torchaudio.load(os.path.join(self.eval_dir, self.files[index]))
-        return sig, self.files[index]
+        X = np.load(os.path.join(wave_dir, self.files[index],'.npy')) # Assuming waveforms are stored as .npy files
+        return X, self.files[index]
 
     def __len__(self):
         return len(self.files)
