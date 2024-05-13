@@ -11,7 +11,7 @@ import json
 
 from dataset.dcase24 import get_training_set, get_test_set, get_eval_set
 from helpers.init import worker_init_fn
-from models.baseline import get_model
+from models.baseline_GRN import get_model
 from helpers.utils import mixstyle
 from helpers import nessi
 
@@ -469,7 +469,7 @@ if __name__ == '__main__':
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="GRN_DSP1_sub5_tuned_noworkers")
+    parser.add_argument('--experiment_name', type=str, default="GRN_Ali1_sub5_tuned_noworkers")
     parser.add_argument('--num_workers', type=int, default=0)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 
