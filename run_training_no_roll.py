@@ -88,7 +88,7 @@ class PLModule(pl.LightningModule):
         :param x: batch of raw audio signals (waveforms)
         :return: final model predictions
         """
-        x = self.mel_forward(x) # mel_forward has been modified to only perform freq masking and then compute the log of the spectrogram
+        # x = self.mel_forward(x) # mel_forward not needed for pre-computed spectrograms
         x = self.model(x)
         return x
 
@@ -120,7 +120,7 @@ class PLModule(pl.LightningModule):
         :return: loss to update model parameters
         """
         x, files, labels, devices, cities = train_batch
-        x = self.mel_forward(x)  # We perform spec aug
+        # x = self.mel_forward(x)  # pre-computed spectrogram, no need mel_forward
         labels = labels.type(torch.LongTensor)
         labels = labels.to(device=x.device)
         if self.config.mixstyle_p > 0:
@@ -230,7 +230,7 @@ class PLModule(pl.LightningModule):
         
         # assure fp16
         self.model.half()
-        x = self.mel_forward(x)
+        # x = self.mel_forward(x)
         x = x.half()
         y_hat = self.model(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
@@ -315,7 +315,7 @@ class PLModule(pl.LightningModule):
         # assure fp16
         self.model.half()
 
-        x = self.mel_forward(x)
+        # x = self.mel_forward(x)
         x = x.half()
         y_hat = self.model(x)
 
@@ -352,7 +352,7 @@ def train(config):
 
     # get model complexity from nessi and log results to wandb
     sample = next(iter(test_dl))[0][0].unsqueeze(0)
-    shape = pl_module.mel_forward(sample).size()
+    shape = sample.size()
     macs, params = nessi.get_torch_size(pl_module.model, input_size=shape)
     # log MACs and number of parameters for our model
     wandb_logger.experiment.config['MACs'] = macs
@@ -413,7 +413,7 @@ def evaluate(config):
 
     # get model complexity from nessi
     sample = next(iter(test_dl))[0][0].unsqueeze(0).to(pl_module.device)
-    shape = pl_module.mel_forward(sample).size()
+    shape = sample.size()
     macs, params = nessi.get_torch_size(pl_module.model, input_size=shape)
 
     print(f"Model Complexity: MACs: {macs}, Params: {params}")
