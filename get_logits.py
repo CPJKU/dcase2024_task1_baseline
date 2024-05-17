@@ -366,13 +366,13 @@ def train(config):
                          devices=1,
                          num_sanity_val_steps=0,
                          precision=config.precision,
-                         callbacks=[pl.callbacks.ModelCheckpoint(save_last=True)])
+                         callbacks=[pl.callbacks.ModelCheckpoint(save_last=True, monitor = "val/loss",save_top_k=1)])
     # start training and validation for the specified number of epochs
     trainer.fit(pl_module, train_dl, test_dl)
 
     # final test step
     # here: use the validation split
-    trainer.test(ckpt_path='last', dataloaders=test_dl)
+    trainer.test(ckpt_path='best', dataloaders=test_dl)
 
     wandb.finish()
 
@@ -387,7 +387,11 @@ def evaluate(config):
     assert config.ckpt_id is not None, "A value for argument 'ckpt_id' must be provided."
     ckpt_dir = os.path.join(config.project_name, config.ckpt_id, "checkpoints")
     assert os.path.exists(ckpt_dir), f"No such folder: {ckpt_dir}"
-    ckpt_file = os.path.join(ckpt_dir, "last.ckpt")
+    # ckpt_file = os.path.join(ckpt_dir, "last.ckpt")
+    for file in os.listdir(ckpt_dir):
+        if "epoch" in file:
+            ckpt_file = os.path.join(ckpt_dir,file) # choosing the best model ckpt
+    # ckpt_file = os.path.join(ckpt_dir, "last.ckpt")
     assert os.path.exists(ckpt_file), f"No such file: {ckpt_file}. Implement your own mechanism to select" \
                                       f"the desired checkpoint."
 
@@ -468,7 +472,7 @@ if __name__ == '__main__':
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
     parser.add_argument('--experiment_name', type=str, default="Baseline_DSP_sub5_eval")
-    parser.add_argument('--num_workers', type=int, default=8)  # number of workers for dataloaders
+    parser.add_argument('--num_workers', type=int, default=0)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 
     # evaluation
@@ -494,14 +498,14 @@ if __name__ == '__main__':
     parser.add_argument('--mixstyle_p', type=float, default=0.4)  # frequency mixstyle
     parser.add_argument('--mixstyle_alpha', type=float, default=0.3)
     parser.add_argument('--weight_decay', type=float, default=0.0001)
-    parser.add_argument('--roll_sec', type=int, default=0.1)  # roll waveform over time
+    parser.add_argument('--roll_sec', type=int, default=0)  # roll waveform over time
 
     # peak learning rate (in cosinge schedule)
     parser.add_argument('--lr', type=float, default=0.005)
-    parser.add_argument('--warmup_steps', type=int, default=2000)
+    parser.add_argument('--warmup_steps', type=int, default=0)
 
     # preprocessing
-    parser.add_argument('--sample_rate', type=int, default=32000)
+    parser.add_argument('--sample_rate', type=int, default=44100)
     parser.add_argument('--window_length', type=int, default=3072)  # in samples (corresponds to 96 ms)
     parser.add_argument('--hop_length', type=int, default=500)  # in samples (corresponds to ~16 ms)
     parser.add_argument('--n_fft', type=int, default=4096)  # length (points) of fft, e.g. 4096 point FFT
