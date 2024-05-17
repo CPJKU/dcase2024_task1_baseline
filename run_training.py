@@ -389,7 +389,9 @@ def evaluate(config):
     ckpt_dir = os.path.join(config.project_name, config.ckpt_id, "checkpoints")
     assert os.path.exists(ckpt_dir), f"No such folder: {ckpt_dir}"
     #ckpt_file = os.path.join(ckpt_dir, "last.ckpt")
-    ckpt_file = os.path.join(ckpt_dir, "xyz.ckpt") # Change the path to the model path desired
+    for file in os.listdir(ckpt_dir):
+        if "epoch" in file:
+            ckpt_file = os.path.join(ckpt_dir,file) # choosing the best model ckpt
     assert os.path.exists(ckpt_file), f"No such file: {ckpt_file}. Implement your own mechanism to select" \
                                       f"the desired checkpoint."
 
