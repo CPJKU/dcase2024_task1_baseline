@@ -9,8 +9,8 @@ from torch.hub import download_url_to_file
 import numpy as np
 
 dataset_dir = "D:\Sean\DCASE\datasets\Extract_to_Folder\TAU-urban-acoustic-scenes-2022-mobile-development"
-wave_dir =  r"D:\Sean\DCASE\datasets\Extract_to_Folder\TAU-urban-acoustic-scenes-2022-mobile-development\logmel_np"
-eval_dir = r"D:\Sean\DCASE\datasets\Extract_to_Folder\TAU-urban-acoustic-scenes-2022-mobile-development\eval_np"
+wave_dir =  r"D:\Sean\DCASE\datasets\Extract_to_Folder\TAU-urban-acoustic-scenes-2022-mobile-development\logmel_pt"
+eval_dir = r"D:\Sean\DCASE\datasets\Extract_to_Folder\TAU-urban-acoustic-scenes-2022-mobile-development\eval_pt"
 
 assert dataset_dir is not None, "Specify 'TAU Urban Acoustic Scenes 2022 Mobile dataset' location in variable " \
                                 "'dataset_dir'. The dataset can be downloaded from this URL:" \
@@ -68,7 +68,8 @@ class BasicDCASE24Dataset(TorchDataset):
         return: waveform, file, label, device and city
         """
         df = pd.read_csv(meta_csv, sep="\t")
-        df.iloc[:, 0] = df.iloc[:, 0].apply(lambda x: x.replace('.wav', '.npy'))
+        # df.iloc[:, 0] = df.iloc[:, 0].apply(lambda x: x.replace('.wav', '.npy')) # if using .npy files
+        df.iloc[:, 0] = df.iloc[:, 0].apply(lambda x: x.replace('.wav', '.pt'))
         le = preprocessing.LabelEncoder()
         self.labels = torch.from_numpy(le.fit_transform(df[['scene_label']].values.reshape(-1)))
         self.devices = le.fit_transform(df[['source_label']].values.reshape(-1))
@@ -76,8 +77,8 @@ class BasicDCASE24Dataset(TorchDataset):
         self.files = df[['filename']].values.reshape(-1)
 
     def __getitem__(self, index):
-        X = np.load(os.path.join(wave_dir, self.files[index])) # Assuming waveforms are stored as .npy files
-        X = torch.from_numpy(X)
+        X = torch.load(os.path.join(wave_dir, self.files[index])) # Assuming waveforms are stored as .pt files
+        # X = torch.from_numpy(X) # Converts numpy array to tensor for model use # If using .npy files
         return X, self.files[index], self.labels[index], self.devices[index], self.cities[index]
 
     def __len__(self):
@@ -94,7 +95,8 @@ class BasicDCASE24ValidDataset(TorchDataset):
         return: waveform, file, label, device and city
         """
         df = pd.read_csv(meta_csv, sep="\t")
-        df.iloc[:, 0] = df.iloc[:, 0].apply(lambda x: x.replace('.wav', '.npy'))
+        # df.iloc[:, 0] = df.iloc[:, 0].apply(lambda x: x.replace('.wav', '.npy')) # if using .npy files
+        df.iloc[:, 0] = df.iloc[:, 0].apply(lambda x: x.replace('.wav', '.pt'))
         le = preprocessing.LabelEncoder()
         self.labels = torch.from_numpy(le.fit_transform(df[['scene_label']].values.reshape(-1)))
         self.devices = le.fit_transform(df[['source_label']].values.reshape(-1))
@@ -102,8 +104,8 @@ class BasicDCASE24ValidDataset(TorchDataset):
         self.files = df[['filename']].values.reshape(-1)
 
     def __getitem__(self, index):
-        X = np.load(os.path.join(eval_dir, self.files[index])) # Assuming waveforms are stored as .npy files
-        X = torch.from_numpy(X)
+        X = torch.load(os.path.join(eval_dir, self.files[index])) # Assuming waveforms are stored as .pt files
+        # X = torch.from_numpy(X) # if using .npy files
         return X, self.files[index], self.labels[index], self.devices[index], self.cities[index]
 
     def __len__(self):
@@ -159,7 +161,7 @@ class RollDataset(TorchDataset):
         return len(self.dataset)
 
 
-def get_training_set(split=100, roll=False):
+def get_training_set_log(split=100, roll=False):
     assert str(split) in ("5", "10", "25", "50", "100"), "Parameters 'split' must be in [5, 10, 25, 50, 100]"
     os.makedirs(dataset_config['split_path'], exist_ok=True)
     subset_fname = f"split{split}.csv"

@@ -9,7 +9,7 @@ import transformers
 import wandb
 import json
 
-from dataset.dcase24_dev_logmel import get_training_set, get_test_set, get_eval_set
+from dataset.dcase24_dev_logmel import get_training_set_log, get_test_set, get_eval_set
 from helpers.init import worker_init_fn
 from models.baseline import get_model
 from helpers.utils import mixstyle
@@ -160,19 +160,22 @@ class PLModule(pl.LightningModule):
             results["devcnt." + d] = torch.as_tensor(0., device=self.device)
             results["devn_correct." + d] = torch.as_tensor(0., device=self.device)
         for i, d in enumerate(dev_names):
-            results["devloss." + d] = results["devloss." + d] + samples_loss[i]
-            results["devn_correct." + d] = results["devn_correct." + d] + n_correct_per_sample[i]
-            results["devcnt." + d] = results["devcnt." + d] + 1
+            if "devloss." + d in results and "devn_correct." + d in results and "devcnt." + d in results:
+                results["devloss." + d] = results["devloss." + d] + samples_loss[i]
+                results["devn_correct." + d] = results["devn_correct." + d] + n_correct_per_sample[i]
+                results["devcnt." + d] = results["devcnt." + d] + 1
 
         for l in self.label_ids:
             results["lblloss." + l] = torch.as_tensor(0., device=self.device)
             results["lblcnt." + l] = torch.as_tensor(0., device=self.device)
             results["lbln_correct." + l] = torch.as_tensor(0., device=self.device)
         for i, l in enumerate(labels):
-            results["lblloss." + self.label_ids[l]] = results["lblloss." + self.label_ids[l]] + samples_loss[i]
-            results["lbln_correct." + self.label_ids[l]] = \
-                results["lbln_correct." + self.label_ids[l]] + n_correct_per_sample[i]
-            results["lblcnt." + self.label_ids[l]] = results["lblcnt." + self.label_ids[l]] + 1
+            lbl = self.label_ids[l]
+            if "lblloss." + lbl in results and "lbln_correct." + lbl in results and "lblcnt." + lbl in results:
+                results["lblloss." + lbl] = results["lblloss." + lbl] + samples_loss[i]
+                results["lbln_correct." + lbl] = results["lbln_correct." + lbl] + n_correct_per_sample[i]
+                results["lblcnt." + lbl] = results["lblcnt." + lbl] + 1
+
         results = {k: v.cpu() for k, v in results.items()}
         self.validation_step_outputs.append(results)
 
@@ -336,7 +339,7 @@ def train(config):
     assert config.subset in {100, 50, 25, 10, 5}, "Specify an integer value in: {100, 50, 25, 10, 5} to use one of " \
                                                   "the given subsets."
     roll_samples = config.orig_sample_rate * config.roll_sec
-    train_dl = DataLoader(dataset=get_training_set(config.subset, roll=roll_samples),
+    train_dl = DataLoader(dataset=get_training_set_log(config.subset, roll=roll_samples),
                           worker_init_fn=worker_init_fn,
                           num_workers=config.num_workers,
                           batch_size=config.batch_size,
