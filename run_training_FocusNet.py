@@ -360,7 +360,7 @@ def train(config):
                           num_workers=config.num_workers,
                           batch_size=config.batch_size,
                           shuffle=True)
-
+    
     test_dl = DataLoader(dataset=get_test_set(),
                          worker_init_fn=worker_init_fn,
                          num_workers=config.num_workers,
@@ -487,7 +487,7 @@ if __name__ == '__main__':
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="FocusNet_Ali1_sub5_PassT teacher")
+    parser.add_argument('--experiment_name', type=str, default="FocusNet_Ali1_sub5_PassT teacher_WU100")
     parser.add_argument('--num_workers', type=int, default=0)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 
@@ -519,8 +519,8 @@ if __name__ == '__main__':
     parser.add_argument('--roll_sec', type=int, default=0)  # roll waveform over time
 
     # peak learning rate (in cosinge schedule)
-    parser.add_argument('--lr', type=float, default=0.005)
-    parser.add_argument('--warmup_steps', type=int, default=0) # default = 2000, divide by 20 for 5% subset, 10 for 10%, 4 for 25%, 2 for 50%
+    parser.add_argument('--lr', type=float, default=0.005) # can try 0.001
+    parser.add_argument('--warmup_steps', type=int, default=100) # default = 2000, divide by 20 for 5% subset, 10 for 10%, 4 for 25%, 2 for 50%
 
     # preprocessing
     parser.add_argument('--sample_rate', type=int, default=44100)
