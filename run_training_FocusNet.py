@@ -392,7 +392,7 @@ def train(config):
 
     # final test step
     # here: use the validation split
-    trainer.test(ckpt_path='last', dataloaders=test_dl)
+    trainer.test(ckpt_path='best', dataloaders=test_dl)
 
     wandb.finish()
 
@@ -407,7 +407,11 @@ def evaluate(config):
     assert config.ckpt_id is not None, "A value for argument 'ckpt_id' must be provided."
     ckpt_dir = os.path.join(config.project_name, config.ckpt_id, "checkpoints")
     assert os.path.exists(ckpt_dir), f"No such folder: {ckpt_dir}"
-    ckpt_file = os.path.join(ckpt_dir, "last.ckpt")
+    # ckpt_file = os.path.join(ckpt_dir, "last.ckpt")
+    for file in os.listdir(ckpt_dir):
+        if "epoch" in file:
+            ckpt_file = os.path.join(ckpt_dir,file) # choosing the best model ckpt
+    # ckpt_file = os.path.join(ckpt_dir, "last.ckpt")
     assert os.path.exists(ckpt_file), f"No such file: {ckpt_file}. Implement your own mechanism to select" \
                                       f"the desired checkpoint."
 
@@ -460,8 +464,8 @@ def evaluate(config):
     # all filenames
     all_files = [item[len("audio/"):] for files, _ in predictions for item in files]
     # all predictions
-    all_predictions = torch.cat([torch.as_tensor(p) for _, p in predictions], 0)
-    all_predictions = F.softmax(all_predictions, dim=1)
+    logits = torch.cat([torch.as_tensor(p) for _, p in predictions], 0)
+    all_predictions = F.softmax(logits.float(), dim=1)
 
     # write eval set predictions to csv file
     df = pd.read_csv(dataset_config['meta_csv'], sep="\t")
@@ -472,7 +476,7 @@ def evaluate(config):
     scene_labels = [class_names[i] for i in torch.argmax(all_predictions, dim=1)]
     df['scene_label'] = scene_labels
     for i, label in enumerate(class_names):
-        df[label] = all_predictions[:, i]
+        df[label] = logits[:, i]
     df = pd.DataFrame(df)
 
     # save eval set predictions, model state_dict and info to output folder
@@ -487,7 +491,7 @@ if __name__ == '__main__':
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="FocusNet_Ali1_sub5_PassT teacher")
+    parser.add_argument('--experiment_name', type=str, default="FocusNet_Ali1_sub5_PassT_teacher")
     parser.add_argument('--num_workers', type=int, default=0)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 

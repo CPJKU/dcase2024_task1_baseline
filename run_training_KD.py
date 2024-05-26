@@ -65,7 +65,7 @@ class PLModule(pl.LightningModule):
                                channels_multiplier=config.channels_multiplier,
                                expansion_rate=config.expansion_rate
                                )
-        self.kl_div_loss = nn.KLDivLoss(log_target=False, reduction="none") # KL Divergence loss for soft, check log_target 
+        self.kl_div_loss = nn.KLDivLoss(log_target=True, reduction="none") # KL Divergence loss for soft, check log_target 
         self.device_ids = ['a', 'b', 'c', 's1', 's2', 's3', 's4', 's5', 's6']
         self.label_ids = ['airport', 'bus', 'metro', 'metro_station', 'park', 'public_square', 'shopping_mall',
                           'street_pedestrian', 'street_traffic', 'tram']
@@ -105,29 +105,30 @@ class PLModule(pl.LightningModule):
         The specified items are used automatically in the optimization loop (no need to call optimizer.step() yourself).
         :return: optimizer and learning rate scheduler
         """
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.config.lr, weight_decay=self.config.weight_decay)
-        schedule_lambda = \
-            exp_warmup_linear_down(self.config.warm_up_len, self.config.ramp_down_len, self.config.ramp_down_start,
-                                   self.config.last_lr_value)
-        lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, schedule_lambda)
+        # optimizer = torch.optim.Adam(self.parameters(), lr=self.config.lr, weight_decay=self.config.weight_decay)
+        # schedule_lambda = \
+        #     exp_warmup_linear_down(self.config.warm_up_len, self.config.ramp_down_len, self.config.ramp_down_start,
+        #                            self.config.last_lr_value)
+        # lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, schedule_lambda)
         
         #For regular training
-        # optimizer = torch.optim.AdamW(self.parameters(), lr=self.config.lr, weight_decay=self.config.weight_decay)
-        # scheduler = transformers.get_cosine_schedule_with_warmup(
-        #     optimizer,
-        #     num_warmup_steps=self.config.warmup_steps,
-        #     num_training_steps=self.trainer.estimated_stepping_batches,
-        # )
+        optimizer = torch.optim.AdamW(self.parameters(), lr=self.config.lr, weight_decay=self.config.weight_decay)
+        scheduler = transformers.get_cosine_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=self.config.warmup_steps,
+            num_training_steps=self.trainer.estimated_stepping_batches,
+        )
 
-        # lr_scheduler_config = {
-        #     "scheduler": scheduler,
-        #     "interval": "step",
-        #     "frequency": 1
-        # }
-        return {
-            'optimizer': optimizer,
-            'lr_scheduler': lr_scheduler
+        lr_scheduler_config = {
+            "scheduler": scheduler,
+            "interval": "step",
+            "frequency": 1
         }
+        return [optimizer], [lr_scheduler_config]
+        # return {
+        #     'optimizer': optimizer,
+        #     'lr_scheduler': lr_scheduler
+        # }
 
     def training_step(self, train_batch, batch_idx):
         """
@@ -149,10 +150,11 @@ class PLModule(pl.LightningModule):
         # Temperature adjusted probabilities of teacher and student
         with torch.cuda.amp.autocast():
             y_hat_soft = F.log_softmax(y_hat / self.config.temperature, dim=-1)
-
+            teacher_logits = F.log_softmax(teacher_logits / self.config.temperature, dim=-1)
         kd_loss = self.kl_div_loss(y_hat_soft, teacher_logits).mean()
         kd_loss = kd_loss * (self.config.temperature ** 2)
-        loss = self.config.kd_lambda * label_loss + (1 - self.config.kd_lambda) * kd_loss
+        # loss = self.config.kd_lambda * label_loss + (1 - self.config.kd_lambda) * kd_loss
+        loss = label_loss + kd_loss
         self.log("lr", self.trainer.optimizers[0].param_groups[0]['lr'])
         self.log("epoch", self.current_epoch)
         self.log("train/loss", loss.detach().cpu())
@@ -396,7 +398,7 @@ def train(config):
 
     # final test step
     # here: use the validation split
-    trainer.test(ckpt_path='last', dataloaders=test_dl)
+    trainer.test(ckpt_path='best', dataloaders=test_dl)
 
     wandb.finish()
 
@@ -411,7 +413,11 @@ def evaluate(config):
     assert config.ckpt_id is not None, "A value for argument 'ckpt_id' must be provided."
     ckpt_dir = os.path.join(config.project_name, config.ckpt_id, "checkpoints")
     assert os.path.exists(ckpt_dir), f"No such folder: {ckpt_dir}"
-    ckpt_file = os.path.join(ckpt_dir, "last.ckpt")
+    # ckpt_file = os.path.join(ckpt_dir, "last.ckpt")
+    for file in os.listdir(ckpt_dir):
+        if "epoch" in file:
+            ckpt_file = os.path.join(ckpt_dir,file) # choosing the best model ckpt
+    # ckpt_file = os.path.join(ckpt_dir, "last.ckpt")
     assert os.path.exists(ckpt_file), f"No such file: {ckpt_file}. Implement your own mechanism to select" \
                                       f"the desired checkpoint."
 
@@ -491,7 +497,7 @@ if __name__ == '__main__':
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="DCASE24_KD_PaSST2Base_Ali1_sub5")
+    parser.add_argument('--experiment_name', type=str, default="DCASE24_Ensemble_KD_PaSST2Base_Ali1_sub5")
     parser.add_argument('--num_workers', type=int, default=0)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 
@@ -524,18 +530,18 @@ if __name__ == '__main__':
     
     ## knowledge distillation
     parser.add_argument('--temperature', type=float, default=2.0)
-    parser.add_argument('--kd_lambda', type=float, default=0.5) # default is 0.02
+    parser.add_argument('--kd_lambda', type=float, default=0.02) # default is 0.02
     
     #learning rate for KD
-    parser.add_argument('--lr', type=float, default=0.0009)
-    parser.add_argument('--warm_up_len', type=int, default=14)
-    parser.add_argument('--ramp_down_start', type=int, default=50)
-    parser.add_argument('--ramp_down_len', type=int, default=84)
-    parser.add_argument('--last_lr_value', type=float, default=0.005)  # relative to 'lr'
+    # parser.add_argument('--lr', type=float, default=0.0009)
+    # parser.add_argument('--warm_up_len', type=int, default=14)
+    # parser.add_argument('--ramp_down_start', type=int, default=50)
+    # parser.add_argument('--ramp_down_len', type=int, default=84)
+    # parser.add_argument('--last_lr_value', type=float, default=0.005)  # relative to 'lr'
     
     # # peak learning rate (in cosine schedule)
-    # parser.add_argument('--lr', type=float, default=0.005) # can try 0.001, was 0.005
-    # parser.add_argument('--warmup_steps', type=int, default=100) # default = 2000, divide by 20 for 5% subset, 10 for 10%, 4 for 25%, 2 for 50%
+    parser.add_argument('--lr', type=float, default=0.005) # can try 0.001, was 0.005
+    parser.add_argument('--warmup_steps', type=int, default=100) # default = 2000, divide by 20 for 5% subset, 10 for 10%, 4 for 25%, 2 for 50%
     
     # preprocessing
     parser.add_argument('--sample_rate', type=int, default=44100)

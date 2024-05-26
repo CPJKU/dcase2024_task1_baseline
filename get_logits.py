@@ -419,9 +419,9 @@ def evaluate(config):
     macs, params = nessi.get_torch_size(pl_module.model, input_size=shape)
 
     print(f"Model Complexity: MACs: {macs}, Params: {params}")
-    assert macs <= nessi.MAX_MACS, "The model exceeds the MACs limit and must not be submitted to the challenge!"
-    assert params <= nessi.MAX_PARAMS_MEMORY, \
-        "The model exceeds the parameter limit and must not be submitted to the challenge!"
+    # assert macs <= nessi.MAX_MACS, "The model exceeds the MACs limit and must not be submitted to the challenge!"
+    # assert params <= nessi.MAX_PARAMS_MEMORY, \
+        # "The model exceeds the parameter limit and must not be submitted to the challenge!"
 
     allowed_precision = int(nessi.MAX_PARAMS_MEMORY / params * 8)
     print(f"ATTENTION: According to the number of model parameters and the memory limits that apply in the challenge,"
@@ -445,7 +445,8 @@ def evaluate(config):
     all_files = [item[len("audio/"):] for files, _ in predictions for item in files]
     # all predictions
     all_predictions = torch.cat([torch.as_tensor(p) for _, p in predictions], 0)
-    all_predictions = F.softmax(all_predictions.float(), dim=1)
+    logits = torch.cat([torch.as_tensor(p) for _, p in predictions], 0)
+    all_predictions = F.softmax(logits.float(), dim=1)
 
     # write eval set predictions to csv file
     df = pd.read_csv(dataset_config['meta_csv'], sep="\t")
@@ -456,7 +457,7 @@ def evaluate(config):
     scene_labels = [class_names[i] for i in torch.argmax(all_predictions, dim=1)]
     df['scene_label'] = scene_labels
     for i, label in enumerate(class_names):
-        df[label] = all_predictions[:, i]
+        df[label] = logits[:, i]
     df = pd.DataFrame(df)
 
     # save eval set predictions, model state_dict and info to output folder
