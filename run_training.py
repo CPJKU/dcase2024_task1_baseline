@@ -388,8 +388,7 @@ def evaluate(config):
     assert config.ckpt_id is not None, "A value for argument 'ckpt_id' must be provided."
     ckpt_dir = os.path.join(config.project_name, config.ckpt_id, "checkpoints")
     assert os.path.exists(ckpt_dir), f"No such folder: {ckpt_dir}"
-    #ckpt_file = os.path.join(ckpt_dir, "last.ckpt")
-    ckpt_file = os.path.join(ckpt_dir, "xyz.ckpt") # Change the path to the model path desired
+    ckpt_file = os.path.join(ckpt_dir, "last.ckpt")
     assert os.path.exists(ckpt_file), f"No such file: {ckpt_file}. Implement your own mechanism to select" \
                                       f"the desired checkpoint."
 
@@ -469,7 +468,7 @@ if __name__ == '__main__':
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="Baseline_DSP1_sub5_tuned_noworkers")
+    parser.add_argument('--experiment_name', type=str, default="GRN_Ali1_sub5_tuned_noworkers")
     parser.add_argument('--num_workers', type=int, default=0)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 

@@ -21,7 +21,7 @@ dataset_config = {
     "test_split_csv": "test.csv",
     "eval_dir": os.path.join(dataset_dir), 
     "eval_meta_csv": os.path.join(dataset_dir, "split100.csv"), # to get the full prediction list with index intact
-    "logits_file": os.path.join("predictions","1ea864zz", "logits.pt") #specifies where the logit and predictions are stored. Still need to provide script with ckpt_id
+    "logits_file": os.path.join("predictions","elymyq0s", "logits.pt") #specifies where the logit and predictions are stored. Still need to provide script with ckpt_id
     # "eval_dir": os.path.join(dataset_dir, "TAU-urban-acoustic-scenes-2024-mobile-evaluation"), 
     # "eval_meta_csv": os.path.join(dataset_dir,  "TAU-urban-acoustic-scenes-2024-mobile-evaluation", "meta.csv")
 }
@@ -147,7 +147,7 @@ def get_base_training_set(meta_csv, train_files_csv):
     train_subset_indices = list(meta[meta['filename'].isin(train_files)].index)
     ds = SimpleSelectionDataset(BasicDCASE24Dataset(meta_csv),
                                 train_subset_indices)
-    ds = AddLogitsDataset(ds, train_subset_indices, dataset_config['logits_file'])
+    # ds = AddLogitsDataset(ds, train_subset_indices, dataset_config['logits_file'])
     return ds
 
 
