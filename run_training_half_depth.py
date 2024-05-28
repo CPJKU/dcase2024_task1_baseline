@@ -9,7 +9,7 @@ import transformers
 import wandb
 import json
 
-from dataset.dcase24 import get_training_set, get_test_set, get_eval_set
+from dataset.dcase24_dev import get_training_set, get_test_set, get_eval_set
 from helpers.init import worker_init_fn
 from models.baseline_half_depth import get_model
 from helpers.utils import mixstyle
@@ -468,7 +468,7 @@ if __name__ == '__main__':
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="Baseline_Ali1_sub5_half_depth")
+    parser.add_argument('--experiment_name', type=str, default="Baseline_DSP1_sub5_half_depth1")
     parser.add_argument('--num_workers', type=int, default=0)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 
