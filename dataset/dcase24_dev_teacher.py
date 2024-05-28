@@ -7,6 +7,9 @@ import torchaudio
 import torch.nn.functional as F
 from torch.hub import download_url_to_file
 import numpy as np
+import librosa
+from scipy.signal import convolve
+import pathlib
 
 dataset_dir = "D:\Sean\DCASE\datasets\Extract_to_Folder\TAU-urban-acoustic-scenes-2022-mobile-development"
 assert dataset_dir is not None, "Specify 'TAU Urban Acoustic Scenes 2022 Mobile dataset' location in variable " \
@@ -19,6 +22,7 @@ dataset_config = {
     "split_path": "split_setup",
     "split_url": "https://github.com/CPJKU/dcase2024_task1_baseline/releases/download/files/",
     "test_split_csv": "test.csv",
+    "dirs_path": os.path.join("datasets", "dirs"),
     "eval_dir": os.path.join(dataset_dir), 
     "eval_meta_csv": os.path.join(dataset_dir, "split100.csv"), # to get the full prediction list with index intact
     # "logits_file": os.path.join("predictions","o661pbve", "logits.pt")
@@ -26,7 +30,33 @@ dataset_config = {
     # "eval_dir": os.path.join(dataset_dir, "TAU-urban-acoustic-scenes-2024-mobile-evaluation"), 
     # "eval_meta_csv": os.path.join(dataset_dir,  "TAU-urban-acoustic-scenes-2024-mobile-evaluation", "meta.csv")
 }
+class DIRAugmentDataset(TorchDataset):
+    """
+   Augments Waveforms with a Device Impulse Response (DIR)
+    """
 
+    def __init__(self, ds, dirs, prob):
+        self.ds = ds
+        self.dirs = dirs
+        self.prob = prob
+
+    def __getitem__(self, index):
+        x, file, label, device, city, logits = self.ds[index]
+
+        fsplit = file.rsplit("-", 1)
+        device = fsplit[1][:-4]
+
+        if device == 'a' and torch.rand(1) < self.prob:
+            # choose a DIR at random
+            dir_idx = int(np.random.randint(0, len(self.dirs)))
+            dir = self.dirs[dir_idx]
+
+            x = convolve(x, dir, 'full')[:, :x.shape[1]]
+            x = torch.from_numpy(x)
+        return x, file, label, device, city, logits
+
+    def __len__(self):
+        return len(self.ds)
 class AddLogitsDataset(TorchDataset):
     """A dataset that loads and adds teacher logits to audio samples.
     """
@@ -124,8 +154,22 @@ class RollDataset(TorchDataset):
     def __len__(self):
         return len(self.dataset)
 
+def load_dirs(dirs_path, resample_rate):
+    all_paths = [path for path in pathlib.Path(os.path.expanduser(dirs_path)).rglob('*.wav')]
+    all_paths = sorted(all_paths)
+    all_paths_name = [str(p).rsplit("/", 1)[-1] for p in all_paths]
 
-def get_training_set(split=100, roll=False):
+    print("Augment waveforms with the following device impulse responses:")
+    for i in range(len(all_paths_name)):
+        print(i, ": ", all_paths_name[i])
+
+    def process_func(dir_file):
+        sig, _ = librosa.load(dir_file, sr=resample_rate, mono=True)
+        sig = torch.from_numpy(sig[np.newaxis])
+        return sig
+
+    return [process_func(p) for p in all_paths]
+def get_training_set(split=100, roll=False, dir_prob=0,resample_rate=44100):
     assert str(split) in ("5", "10", "25", "50", "100"), "Parameters 'split' must be in [5, 10, 25, 50, 100]"
     os.makedirs(dataset_config['split_path'], exist_ok=True)
     subset_fname = f"split{split}.csv"
@@ -136,7 +180,8 @@ def get_training_set(split=100, roll=False):
         print(f"Downloading file: {subset_fname}")
         download_url_to_file(subset_csv_url, subset_split_file)
     ds = get_base_training_set(dataset_config['meta_csv'], subset_split_file)
-    
+    if dir_prob > 0:
+        ds = DIRAugmentDataset(ds, load_dirs(dataset_config['dirs_path'], resample_rate), dir_prob)
     if roll:
         ds = RollDataset(ds, shift_range=roll)
     return ds
