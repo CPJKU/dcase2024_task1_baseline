@@ -149,8 +149,8 @@ class PLModule(pl.LightningModule):
         label_loss = samples_loss.mean()
         # Temperature adjusted probabilities of teacher and student
         with torch.cuda.amp.autocast():
-            y_hat_soft = F.log_softmax(y_hat / self.config.temperature, dim=-1) 
-            teacher_logits = F.log_softmax(teacher_logits / self.config.temperature, dim=-1) 
+            y_hat_soft = F.log_softmax(y_hat / self.config.temperature, dim=-1)
+            teacher_logits = F.log_softmax(teacher_logits / self.config.temperature, dim=-1)
         kd_loss = self.kl_div_loss(y_hat_soft, teacher_logits).mean()
         kd_loss = kd_loss * (self.config.temperature ** 2)
         loss = self.config.kd_lambda * label_loss + (1 - self.config.kd_lambda) * kd_loss
@@ -497,7 +497,7 @@ if __name__ == '__main__':
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="DCASE24_KD_PaSST2Base_Ali1_sub5_lmda_cosine_sch_half_epoch")
+    parser.add_argument('--experiment_name', type=str, default="DCASE24_KD_Ensemble2Base_Ali1_sub5_lmda_cosine_sch_LR_0005")
     parser.add_argument('--num_workers', type=int, default=0)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 
@@ -540,7 +540,7 @@ if __name__ == '__main__':
     # parser.add_argument('--last_lr_value', type=float, default=0.005)  # relative to 'lr', refers to 0.5%
     
     # # peak learning rate (in cosine schedule)
-    parser.add_argument('--lr', type=float, default=0.005) # can try 0.001, was 0.005
+    parser.add_argument('--lr', type=float, default=0.0005) # can try 0.001, was 0.005
     parser.add_argument('--warmup_steps', type=int, default=0) # default = 2000, divide by 20 for 5% subset, 10 for 10%, 4 for 25%, 2 for 50%
     
     # preprocessing

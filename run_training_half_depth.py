@@ -8,21 +8,14 @@ import torch.nn.functional as F
 import transformers
 import wandb
 import json
-import torch.nn as nn
 
-from helpers.lr_schedule import exp_warmup_linear_down
-from dataset.dcase24_dev_teacher import get_training_set, get_test_set, get_eval_set
+from dataset.dcase24 import get_training_set, get_test_set, get_eval_set
 from helpers.init import worker_init_fn
-from models.baseline import get_model
+from models.baseline_half_depth import get_model
 from helpers.utils import mixstyle
 from helpers import nessi
 
 torch.set_float32_matmul_precision("high")
-
-## In FocusNet, we need a baseline or it's logits to adjust the weighting of the loss for student logits.
-## We load logits from a .pt file by calling logits = torch.load(logits).float()
-
-
 class PLModule(pl.LightningModule):
     def __init__(self, config):
         super().__init__()
@@ -57,7 +50,7 @@ class PLModule(pl.LightningModule):
             freqm,
             timem
         )
-        
+
         # the baseline model
         self.model = get_model(n_classes=config.n_classes,
                                in_channels=config.in_channels,
@@ -65,7 +58,7 @@ class PLModule(pl.LightningModule):
                                channels_multiplier=config.channels_multiplier,
                                expansion_rate=config.expansion_rate
                                )
-        self.kl_div_loss = nn.KLDivLoss(log_target=True, reduction="none")  # KL Divergence loss for soft, check log_target
+
         self.device_ids = ['a', 'b', 'c', 's1', 's2', 's3', 's4', 's5', 's6']
         self.label_ids = ['airport', 'bus', 'metro', 'metro_station', 'park', 'public_square', 'shopping_mall',
                           'street_pedestrian', 'street_traffic', 'tram']
@@ -105,13 +98,7 @@ class PLModule(pl.LightningModule):
         The specified items are used automatically in the optimization loop (no need to call optimizer.step() yourself).
         :return: optimizer and learning rate scheduler
         """
-        # optimizer = torch.optim.Adam(self.parameters(), lr=self.config.lr, weight_decay=self.config.weight_decay)
-        # schedule_lambda = \
-        #     exp_warmup_linear_down(self.config.warm_up_len, self.config.ramp_down_len, self.config.ramp_down_start,
-        #                            self.config.last_lr_value)
-        # lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, schedule_lambda)
-        
-        #For regular training
+
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.config.lr, weight_decay=self.config.weight_decay)
         scheduler = transformers.get_cosine_schedule_with_warmup(
             optimizer,
@@ -125,10 +112,6 @@ class PLModule(pl.LightningModule):
             "frequency": 1
         }
         return [optimizer], [lr_scheduler_config]
-        # return {
-        #     'optimizer': optimizer,
-        #     'lr_scheduler': lr_scheduler
-        # }
 
     def training_step(self, train_batch, batch_idx):
         """
@@ -136,25 +119,17 @@ class PLModule(pl.LightningModule):
         :param batch_idx
         :return: loss to update model parameters
         """
-        x, files, labels, devices, cities, teacher_logits = train_batch
+        x, files, labels, devices, cities = train_batch
         x = self.mel_forward(x)  # we convert the raw audio signals into log mel spectrograms
         labels = labels.type(torch.LongTensor)
         labels = labels.to(device=x.device)
         if self.config.mixstyle_p > 0:
             # frequency mixstyle
             x = mixstyle(x, self.config.mixstyle_p, self.config.mixstyle_alpha)
-        y_hat = self.model(x.cuda()) # This is the outputs
-        # At this point we want to perform KLdiv loss      
+        y_hat = self.model(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
-        label_loss = samples_loss.mean()
-        # Temperature adjusted probabilities of teacher and student
-        with torch.cuda.amp.autocast():
-            y_hat_soft = F.log_softmax(y_hat / self.config.temperature, dim=-1)
-            teacher_logits = F.log_softmax(teacher_logits / self.config.temperature, dim=-1)
-        kd_loss = self.kl_div_loss(y_hat_soft, teacher_logits).mean()
-        kd_loss = kd_loss * (self.config.temperature ** 2)
-        loss = self.config.kd_lambda * label_loss + (1 - self.config.kd_lambda) * kd_loss
-        # loss = label_loss + kd_loss
+        loss = samples_loss.mean()
+
         self.log("lr", self.trainer.optimizers[0].param_groups[0]['lr'])
         self.log("epoch", self.current_epoch)
         self.log("train/loss", loss.detach().cpu())
@@ -167,7 +142,7 @@ class PLModule(pl.LightningModule):
         x, files, labels, devices, cities = val_batch
         labels = labels.type(torch.LongTensor)
         labels = labels.to(device=x.device)
-        y_hat = self.forward(x.cuda())
+        y_hat= self.forward(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
 
         # for computing accuracy
@@ -252,7 +227,7 @@ class PLModule(pl.LightningModule):
         # maximum memory allowance for parameters: 128 KB
         # baseline has 61148 parameters -> we can afford 16-bit precision
         # since 61148 * 16 bit ~ 122 kB
-
+        
         # assure fp16
         self.model.half()
         x = self.mel_forward(x)
@@ -366,7 +341,7 @@ def train(config):
                           num_workers=config.num_workers,
                           batch_size=config.batch_size,
                           shuffle=True)
-    
+
     test_dl = DataLoader(dataset=get_test_set(),
                          worker_init_fn=worker_init_fn,
                          num_workers=config.num_workers,
@@ -413,11 +388,7 @@ def evaluate(config):
     assert config.ckpt_id is not None, "A value for argument 'ckpt_id' must be provided."
     ckpt_dir = os.path.join(config.project_name, config.ckpt_id, "checkpoints")
     assert os.path.exists(ckpt_dir), f"No such folder: {ckpt_dir}"
-    # ckpt_file = os.path.join(ckpt_dir, "last.ckpt")
-    for file in os.listdir(ckpt_dir):
-        if "epoch" in file:
-            ckpt_file = os.path.join(ckpt_dir,file) # choosing the best model ckpt
-    # ckpt_file = os.path.join(ckpt_dir, "last.ckpt")
+    ckpt_file = os.path.join(ckpt_dir, "last.ckpt")
     assert os.path.exists(ckpt_file), f"No such file: {ckpt_file}. Implement your own mechanism to select" \
                                       f"the desired checkpoint."
 
@@ -471,7 +442,7 @@ def evaluate(config):
     all_files = [item[len("audio/"):] for files, _ in predictions for item in files]
     # all predictions
     all_predictions = torch.cat([torch.as_tensor(p) for _, p in predictions], 0)
-    all_predictions = F.softmax(all_predictions, dim=1)
+    all_predictions = F.softmax(all_predictions.float(), dim=1)
 
     # write eval set predictions to csv file
     df = pd.read_csv(dataset_config['meta_csv'], sep="\t")
@@ -497,7 +468,7 @@ if __name__ == '__main__':
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="DCASE24_KD_Ensemble2Base_Ali1_sub5_lmda_cosine_sch_LR001")
+    parser.add_argument('--experiment_name', type=str, default="Baseline_Ali1_sub5_half_depth")
     parser.add_argument('--num_workers', type=int, default=0)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 
@@ -521,35 +492,23 @@ if __name__ == '__main__':
     # training
     parser.add_argument('--n_epochs', type=int, default=150)
     parser.add_argument('--batch_size', type=int, default=256)
-    # parser.add_argument('--mixstyle_p', type=float, default=0)
     parser.add_argument('--mixstyle_p', type=float, default=0.4)  # frequency mixstyle
     parser.add_argument('--mixstyle_alpha', type=float, default=0.3)
     parser.add_argument('--weight_decay', type=float, default=0.0001)
-    # parser.add_argument('--roll_sec', type=int, default=0)
-    parser.add_argument('--roll_sec', type=int, default=0)  # roll waveform over time
-    
-    ## knowledge distillation
-    parser.add_argument('--temperature', type=float, default=2.0)
-    parser.add_argument('--kd_lambda', type=float, default=0.02) # default is 0.02
-    
-    #learning rate for KD
-    # parser.add_argument('--lr', type=float, default=0.001)
-    # parser.add_argument('--warm_up_len', type=int, default=7)
-    # parser.add_argument('--ramp_down_start', type=int, default=50)
-    # parser.add_argument('--ramp_down_len', type=int, default=92)
-    # parser.add_argument('--last_lr_value', type=float, default=0.005)  # relative to 'lr', refers to 0.5%
-    
-    # # peak learning rate (in cosine schedule)
-    parser.add_argument('--lr', type=float, default=0.001) # can try 0.001, was 0.005
-    parser.add_argument('--warmup_steps', type=int, default=0) # default = 2000, divide by 20 for 5% subset, 10 for 10%, 4 for 25%, 2 for 50%
-    
+    parser.add_argument('--roll_sec', type=int, default=0)  # roll waveform over time, default = 0.1
+
+    # peak learning rate (in cosinge schedule)
+    parser.add_argument('--lr', type=float, default=0.005)
+    parser.add_argument('--warmup_steps', type=int, default=100) # default = 2000, divide by 20 for 5% subset, 10 for 10%, 4 for 25%, 2 for 50%
+
     # preprocessing
-    parser.add_argument('--sample_rate', type=int, default=44100)
+    parser.add_argument('--sample_rate', type=int, default=44100) #default = 32000
     parser.add_argument('--window_length', type=int, default=3072)  # in samples (corresponds to 96 ms)
+    # parser.add_argument('--window_length', type=int, default=4234)
     parser.add_argument('--hop_length', type=int, default=500)  # in samples (corresponds to ~16 ms)
+    # parser.add_argument('--hop_length', type=int, default=706)
     parser.add_argument('--n_fft', type=int, default=4096)  # length (points) of fft, e.g. 4096 point FFT
     parser.add_argument('--n_mels', type=int, default=256)  # number of mel bins
-    # parser.add_argument('--freqm', type=int, default=0)
     parser.add_argument('--freqm', type=int, default=48)  # mask up to 'freqm' spectrogram bins
     parser.add_argument('--timem', type=int, default=0)  # mask up to 'timem' spectrogram frames
     parser.add_argument('--f_min', type=int, default=0)  # mel bins are created for freqs. between 'f_min' and 'f_max'
