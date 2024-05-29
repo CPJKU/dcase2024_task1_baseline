@@ -1,5 +1,6 @@
 # DCASE2024 - Task 1 - Baseline Systems
 
+DCASE 첫 도전기 2024 Challenge TASK 1
 Contact: **Florian Schmid** (florian.schmid@jku.at), *Johannes Kepler University Linz*
 
 
