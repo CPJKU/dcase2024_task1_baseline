@@ -497,7 +497,7 @@ if __name__ == '__main__':
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="DCASE24_KD_PaSST2Base_Ali1_sub5_no_lmda_cosine_sch_best")
+    parser.add_argument('--experiment_name', type=str, default="DCASE24_KD_PaSST2HalfBase_Ali1_sub5_no_lmda_cosine_sch_best")
     parser.add_argument('--num_workers', type=int, default=0)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 
