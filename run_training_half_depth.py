@@ -486,7 +486,7 @@ if __name__ == '__main__':
     parser.add_argument('--in_channels', type=int, default=1)
     # adapt the complexity of the neural network (3 main dimensions to scale the baseline)
     parser.add_argument('--base_channels', type=int, default=8)
-    parser.add_argument('--channels_multiplier', type=float, default=2.8)
+    parser.add_argument('--channels_multiplier', type=float, default=1.8)
     parser.add_argument('--expansion_rate', type=float, default=2.1)
 
     # training
