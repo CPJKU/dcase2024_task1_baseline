@@ -444,7 +444,6 @@ def evaluate(config):
     # all filenames
     all_files = [item[len("audio/"):] for files, _ in predictions for item in files]
     # all predictions
-    all_predictions = torch.cat([torch.as_tensor(p) for _, p in predictions], 0)
     logits = torch.cat([torch.as_tensor(p) for _, p in predictions], 0)
     all_predictions = F.softmax(logits.float(), dim=1)
 

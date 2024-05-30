@@ -11,7 +11,7 @@ import json
 
 from dataset.dcase24_dev_teacher import get_training_set, get_test_set, get_eval_set
 from helpers.init import worker_init_fn
-from models.baseline import get_model
+from models.baseline_half_depth import get_model
 from helpers.utils import mixstyle
 from helpers import nessi
 
@@ -491,7 +491,7 @@ if __name__ == '__main__':
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="FocusNet_Ali1_sub5_PassT_teacher")
+    parser.add_argument('--experiment_name', type=str, default="FocusNet_Ali1_sub5_Half_Depth_Teacher_CM1-8")
     parser.add_argument('--num_workers', type=int, default=0)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 
@@ -508,8 +508,8 @@ if __name__ == '__main__':
     parser.add_argument('--n_classes', type=int, default=10)  # classification model with 'n_classes' output neurons
     parser.add_argument('--in_channels', type=int, default=1)
     # adapt the complexity of the neural network (3 main dimensions to scale the baseline)
-    parser.add_argument('--base_channels', type=int, default=32)
-    parser.add_argument('--channels_multiplier', type=float, default=1.8)
+    parser.add_argument('--base_channels', type=int, default=8)
+    parser.add_argument('--channels_multiplier', type=float, default=2.8) # used 2.8 for 8 channel
     parser.add_argument('--expansion_rate', type=float, default=2.1)
 
     # training
@@ -523,7 +523,7 @@ if __name__ == '__main__':
 
     # peak learning rate (in cosine schedule)
     parser.add_argument('--lr', type=float, default=0.005) # can try 0.001
-    parser.add_argument('--warmup_steps', type=int, default=0) # default = 2000, divide by 20 for 5% subset, 10 for 10%, 4 for 25%, 2 for 50%
+    parser.add_argument('--warmup_steps', type=int, default=100) # default = 2000, divide by 20 for 5% subset, 10 for 10%, 4 for 25%, 2 for 50%
 
     # preprocessing
     parser.add_argument('--sample_rate', type=int, default=44100)
