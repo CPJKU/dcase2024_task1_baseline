@@ -8,7 +8,7 @@ import torch.nn.functional as F
 import transformers
 import wandb
 import json
-from torchvision.transforms import v2
+
 
 from torch.autograd import Variable
 from dataset.dcase24_dev_teacher import get_training_set, get_test_set, get_eval_set
@@ -122,7 +122,7 @@ class PLModule(pl.LightningModule):
         :param batch_idx
         :return: loss to update model parameters
         """
-        criterion = F.cross_entropy()
+        criterion = torch.nn.CrossEntropyLoss()
         def mixup_criterion(criterion, pred, y_a, y_b, lam):
             return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
         x, files, labels, devices, cities, logits = train_batch
@@ -132,15 +132,13 @@ class PLModule(pl.LightningModule):
         if self.config.mixstyle_p > 0:
             # frequency mixstyle
             x = mixstyle(x, self.config.mixstyle_p, self.config.mixstyle_alpha)
-        inputs, targets_a, targets_b, lam = mixup_data(inputs, labels,
+        inputs, targets_a, targets_b, lam = mixup_data(x, labels,
                                                        self.config.mixup_alpha, use_cuda=True)
         inputs, targets_a, targets_b = map(Variable, (inputs,
                                                       targets_a, targets_b))
         y_hat = self.model(x.cuda())
         loss = mixup_criterion(criterion,y_hat, targets_a, targets_b, lam)
-        print(f'mixup loss before mean: {loss}')
-        loss = loss.mean()
-        print(f'mixup loss after mean: {loss}')
+        
         # samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
         # loss = samples_loss.mean()
 
@@ -482,7 +480,7 @@ if __name__ == '__main__':
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="Baseline_Ali_sub5_441K_DIR_FMS_Mixup")
+    parser.add_argument('--experiment_name', type=str, default="Baseline_Ali_sub5_441K_DIR_FMS_Mixup_test")
     parser.add_argument('--num_workers', type=int, default=0)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 

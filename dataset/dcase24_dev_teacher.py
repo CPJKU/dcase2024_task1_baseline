@@ -22,7 +22,7 @@ dataset_config = {
     "split_path": "split_setup",
     "split_url": "https://github.com/CPJKU/dcase2024_task1_baseline/releases/download/files/",
     "test_split_csv": "test.csv",
-    "dirs_path": os.path.join("datasets", "dirs"),
+    "dirs_path": os.path.join("dataset", "dirs"),
     "eval_dir": os.path.join(dataset_dir), 
     "eval_meta_csv": os.path.join(dataset_dir, "split100.csv"), # to get the full prediction list with index intact
     "logits_file": os.path.join("predictions","i3i3xf1x", "logits.pt")

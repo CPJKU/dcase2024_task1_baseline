@@ -26,9 +26,10 @@ def mixstyle(x, p=0.4, alpha=0.3, eps=1e-6):
 def mixup_data(x, y, alpha=1.0, use_cuda=True):
     '''Returns mixed inputs, pairs of targets, and lambda'''
     if alpha > 0:
-        lam = Beta(alpha, alpha)
+        beta_dist = torch.distributions.Beta(alpha, alpha)
+        lam = beta_dist.sample()
     else:
-        lam = 1
+        lam = 1.0
 
     batch_size = x.size()[0]
     if use_cuda:
