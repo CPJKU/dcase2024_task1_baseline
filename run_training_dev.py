@@ -8,17 +8,17 @@ import torch.nn.functional as F
 import transformers
 import wandb
 import json
-import pytorch_metric_learning
-from pytorch_metric_learning import distances, losses, miners, reducers, utils #,testers
-from pytorch_metric_learning.utils import loss_and_miner_utils as lmu
-from wandb import AlertLevel
-from dataset.dcase24 import get_training_set, get_test_set, get_eval_set
+from torchvision.transforms import v2
+
+from torch.autograd import Variable
+from dataset.dcase24_dev_teacher import get_training_set, get_test_set, get_eval_set
 from helpers.init import worker_init_fn
-from models.baseline_metric import get_model
-from helpers.utils import mixstyle
+from models.baseline import get_model
+from helpers.utils import mixstyle, mixup_data
 from helpers import nessi
 
 torch.set_float32_matmul_precision("high")
+
 class PLModule(pl.LightningModule):
     def __init__(self, config):
         super().__init__()
@@ -115,34 +115,34 @@ class PLModule(pl.LightningModule):
             "frequency": 1
         }
         return [optimizer], [lr_scheduler_config]
-
+    
     def training_step(self, train_batch, batch_idx):
         """
         :param train_batch: contains one batch from train dataloader
         :param batch_idx
         :return: loss to update model parameters
         """
-        ### pytorch-metric-learning stuff ###
-        reducer = reducers.ThresholdReducer(low=0)
-        loss_func = losses.ContrastiveLoss(pos_margin=0, neg_margin=1, distance=distances.LpDistance(p=2))
-    
-        ### No mining for now
-        # mining_func = miners.TripletMarginMiner(
-        #     margin=0.2, distance=distance, type_of_triplets="semihard"
-        # )
-        # accuracy_calculator = AccuracyCalculator(include=("precision_at_1",),exclude=("knn_func"), k=1)
-        
-        x, files, labels, devices, cities = train_batch
+        criterion = F.cross_entropy()
+        def mixup_criterion(criterion, pred, y_a, y_b, lam):
+            return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
+        x, files, labels, devices, cities, logits = train_batch
         x = self.mel_forward(x)  # we convert the raw audio signals into log mel spectrograms
         labels = labels.type(torch.LongTensor)
         labels = labels.to(device=x.device)
         if self.config.mixstyle_p > 0:
             # frequency mixstyle
             x = mixstyle(x, self.config.mixstyle_p, self.config.mixstyle_alpha)
-        y_hat, embedding = self.model(x.cuda())
-        samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
-        metric_loss = loss_func(embedding, labels)
-        loss = samples_loss.mean() + metric_loss
+        inputs, targets_a, targets_b, lam = mixup_data(inputs, labels,
+                                                       self.config.mixup_alpha, use_cuda=True)
+        inputs, targets_a, targets_b = map(Variable, (inputs,
+                                                      targets_a, targets_b))
+        y_hat = self.model(x.cuda())
+        loss = mixup_criterion(criterion,y_hat, targets_a, targets_b, lam)
+        print(f'mixup loss before mean: {loss}')
+        loss = loss.mean()
+        print(f'mixup loss after mean: {loss}')
+        # samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
+        # loss = samples_loss.mean()
 
         self.log("lr", self.trainer.optimizers[0].param_groups[0]['lr'])
         self.log("epoch", self.current_epoch)
@@ -153,14 +153,12 @@ class PLModule(pl.LightningModule):
         pass
 
     def validation_step(self, val_batch, batch_idx):
-        loss_func = losses.ContrastiveLoss(pos_margin=0, neg_margin=1, distance=distances.LpDistance(p=2))
         x, files, labels, devices, cities = val_batch
         labels = labels.type(torch.LongTensor)
         labels = labels.to(device=x.device)
-        y_hat, embedding = self.forward(x.cuda())
+        y_hat= self.forward(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
-        metric_loss = loss_func(embedding, labels)
-        loss = samples_loss.mean() + metric_loss
+
         # for computing accuracy
         _, preds = torch.max(y_hat, dim=1)
         n_correct_per_sample = (preds == labels)
@@ -176,7 +174,7 @@ class PLModule(pl.LightningModule):
             results["devcnt." + d] = torch.as_tensor(0., device=self.device)
             results["devn_correct." + d] = torch.as_tensor(0., device=self.device)
         for i, d in enumerate(dev_names):
-            results["devloss." + d] = results["devloss." + d] + loss.item()
+            results["devloss." + d] = results["devloss." + d] + samples_loss[i]
             results["devn_correct." + d] = results["devn_correct." + d] + n_correct_per_sample[i]
             results["devcnt." + d] = results["devcnt." + d] + 1
 
@@ -185,7 +183,7 @@ class PLModule(pl.LightningModule):
             results["lblcnt." + l] = torch.as_tensor(0., device=self.device)
             results["lbln_correct." + l] = torch.as_tensor(0., device=self.device)
         for i, l in enumerate(labels):
-            results["lblloss." + self.label_ids[l]] = results["lblloss." + self.label_ids[l]] + loss.item()
+            results["lblloss." + self.label_ids[l]] = results["lblloss." + self.label_ids[l]] + samples_loss[i]
             results["lbln_correct." + self.label_ids[l]] = \
                 results["lbln_correct." + self.label_ids[l]] + n_correct_per_sample[i]
             results["lblcnt." + self.label_ids[l]] = results["lblcnt." + self.label_ids[l]] + 1
@@ -194,7 +192,6 @@ class PLModule(pl.LightningModule):
 
     def on_validation_epoch_end(self):
         # convert a list of dicts to a flattened dict
-        threshold = 0.35
         outputs = {k: [] for k in self.validation_step_outputs[0]}
         for step_output in self.validation_step_outputs:
             for k in step_output:
@@ -204,13 +201,7 @@ class PLModule(pl.LightningModule):
 
         avg_loss = outputs['loss'].mean()
         acc = sum(outputs['n_correct']) * 1.0 / sum(outputs['n_pred'])
-        if acc < threshold:
-             wandb.alert(
-            title="Low accuracy",
-            text=f"Accuracy {acc} is below the acceptable threshold {threshold}",
-            level=AlertLevel.WARN,
-            wait_duration=1800,
-        )
+
         logs = {'acc': acc, 'loss': avg_loss}
 
         # log metric per device and scene
@@ -255,7 +246,7 @@ class PLModule(pl.LightningModule):
         self.model.half()
         x = self.mel_forward(x)
         x = x.half()
-        y_hat, embedding = self.model(x.cuda())
+        y_hat = self.model(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
 
         # for computing accuracy
@@ -340,7 +331,7 @@ class PLModule(pl.LightningModule):
 
         x = self.mel_forward(x)
         x = x.half()
-        y_hat, embedding = self.model(x)
+        y_hat = self.model(x)
 
         return files, y_hat
 
@@ -359,7 +350,7 @@ def train(config):
     assert config.subset in {100, 50, 25, 10, 5}, "Specify an integer value in: {100, 50, 25, 10, 5} to use one of " \
                                                   "the given subsets."
     roll_samples = config.orig_sample_rate * config.roll_sec
-    train_dl = DataLoader(dataset=get_training_set(config.subset, roll=roll_samples),
+    train_dl = DataLoader(dataset=get_training_set(config.subset, roll=roll_samples, dir_prob= config.dir_prob, resample_rate = config.sample_rate),
                           worker_init_fn=worker_init_fn,
                           num_workers=config.num_workers,
                           batch_size=config.batch_size,
@@ -389,13 +380,14 @@ def train(config):
                          devices=1,
                          num_sanity_val_steps=0,
                          precision=config.precision,
-                         callbacks=[pl.callbacks.ModelCheckpoint(save_last=True)])
+                         callbacks=[pl.callbacks.ModelCheckpoint(save_last=True, monitor = "val/loss",save_top_k=1)]
+                         )
     # start training and validation for the specified number of epochs
     trainer.fit(pl_module, train_dl, test_dl)
 
     # final test step
     # here: use the validation split
-    trainer.test(ckpt_path='last', dataloaders=test_dl)
+    trainer.test(ckpt_path='best', dataloaders=test_dl)
 
     wandb.finish()
 
@@ -464,7 +456,7 @@ def evaluate(config):
     all_files = [item[len("audio/"):] for files, _ in predictions for item in files]
     # all predictions
     all_predictions = torch.cat([torch.as_tensor(p) for _, p in predictions], 0)
-    all_predictions = F.softmax(all_predictions, dim=1)
+    all_predictions = F.softmax(all_predictions.float(), dim=1)
 
     # write eval set predictions to csv file
     df = pd.read_csv(dataset_config['meta_csv'], sep="\t")
@@ -490,8 +482,8 @@ if __name__ == '__main__':
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="Baseline_Ali_contrastive100_1")
-    parser.add_argument('--num_workers', type=int, default=8)  # number of workers for dataloaders
+    parser.add_argument('--experiment_name', type=str, default="Baseline_Ali_sub5_441K_DIR_FMS_Mixup")
+    parser.add_argument('--num_workers', type=int, default=0)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 
     # evaluation
@@ -501,7 +493,7 @@ if __name__ == '__main__':
     # dataset
     # subset in {100, 50, 25, 10, 5}
     parser.add_argument('--orig_sample_rate', type=int, default=44100)
-    parser.add_argument('--subset', type=int, default=100)
+    parser.add_argument('--subset', type=int, default=5)
 
     # model
     parser.add_argument('--n_classes', type=int, default=10)  # classification model with 'n_classes' output neurons
@@ -517,16 +509,21 @@ if __name__ == '__main__':
     parser.add_argument('--mixstyle_p', type=float, default=0.4)  # frequency mixstyle
     parser.add_argument('--mixstyle_alpha', type=float, default=0.3)
     parser.add_argument('--weight_decay', type=float, default=0.0001)
-    parser.add_argument('--roll_sec', type=int, default=0.1)  # roll waveform over time
+    parser.add_argument('--roll_sec', type=int, default=0)  # roll waveform over time, default = 0.1
+    parser.add_argument('--dir_prob', type=float, default=0.6)  # prob. to apply device impulse response augmentation
+    parser.add_argument('--mixup_p', type=float, default=0.4) # standard mixup
+    parser.add_argument('--mixup_alpha', type=float, default=1.0)
 
     # peak learning rate (in cosinge schedule)
     parser.add_argument('--lr', type=float, default=0.005)
-    parser.add_argument('--warmup_steps', type=int, default=2000)
+    parser.add_argument('--warmup_steps', type=int, default=100) # default = 2000, divide by 20 for 5% subset, 10 for 10%, 4 for 25%, 2 for 50%
 
     # preprocessing
-    parser.add_argument('--sample_rate', type=int, default=32000)
+    parser.add_argument('--sample_rate', type=int, default=44100) #default = 32000
     parser.add_argument('--window_length', type=int, default=3072)  # in samples (corresponds to 96 ms)
+    # parser.add_argument('--window_length', type=int, default=4234)
     parser.add_argument('--hop_length', type=int, default=500)  # in samples (corresponds to ~16 ms)
+    # parser.add_argument('--hop_length', type=int, default=706)
     parser.add_argument('--n_fft', type=int, default=4096)  # length (points) of fft, e.g. 4096 point FFT
     parser.add_argument('--n_mels', type=int, default=256)  # number of mel bins
     parser.add_argument('--freqm', type=int, default=48)  # mask up to 'freqm' spectrogram bins
