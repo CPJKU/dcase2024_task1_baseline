@@ -375,7 +375,7 @@ def train(config):
     trainer = pl.Trainer(max_epochs=config.n_epochs,
                          logger=wandb_logger,
                          accelerator='gpu',
-                         devices=1,
+                         devices=[1],
                          num_sanity_val_steps=0,
                          precision=config.precision,
                          callbacks=[pl.callbacks.ModelCheckpoint(save_last=True, monitor = "val/loss",save_top_k=1)]
@@ -480,7 +480,7 @@ if __name__ == '__main__':
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="Baseline_Ali_sub5_441K_DIR_FMS_Mixup_test_16_channel")
+    parser.add_argument('--experiment_name', type=str, default="Baseline_Ali_sub100_32K_DIR_FMS_Mixup_32_channel")
     parser.add_argument('--num_workers', type=int, default=0)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 
@@ -491,13 +491,13 @@ if __name__ == '__main__':
     # dataset
     # subset in {100, 50, 25, 10, 5}
     parser.add_argument('--orig_sample_rate', type=int, default=44100)
-    parser.add_argument('--subset', type=int, default=5)
+    parser.add_argument('--subset', type=int, default=100)
 
     # model
     parser.add_argument('--n_classes', type=int, default=10)  # classification model with 'n_classes' output neurons
     parser.add_argument('--in_channels', type=int, default=1)
     # adapt the complexity of the neural network (3 main dimensions to scale the baseline)
-    parser.add_argument('--base_channels', type=int, default=16)
+    parser.add_argument('--base_channels', type=int, default=32)
     parser.add_argument('--channels_multiplier', type=float, default=1.8)
     parser.add_argument('--expansion_rate', type=float, default=2.1)
 
