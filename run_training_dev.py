@@ -144,7 +144,7 @@ class PLModule(pl.LightningModule):
 
         self.log("lr", self.trainer.optimizers[0].param_groups[0]['lr'])
         self.log("epoch", self.current_epoch)
-        self.log("train/loss", loss.detach().cpu())
+        self.log("train/loss", loss.detach())
         return loss
 
     def on_train_epoch_end(self):
@@ -185,7 +185,7 @@ class PLModule(pl.LightningModule):
             results["lbln_correct." + self.label_ids[l]] = \
                 results["lbln_correct." + self.label_ids[l]] + n_correct_per_sample[i]
             results["lblcnt." + self.label_ids[l]] = results["lblcnt." + self.label_ids[l]] + 1
-        results = {k: v.cpu() for k, v in results.items()}
+        results = {k: v.detach() for k, v in results.items()}
         self.validation_step_outputs.append(results)
 
     def on_validation_epoch_end(self):
