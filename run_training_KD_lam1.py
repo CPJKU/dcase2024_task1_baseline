@@ -153,8 +153,8 @@ class PLModule(pl.LightningModule):
             teacher_logits = F.log_softmax(teacher_logits / self.config.temperature, dim=-1)
         kd_loss = self.kl_div_loss(y_hat_soft, teacher_logits).mean()
         kd_loss = kd_loss * (self.config.temperature ** 2)
-        # loss = self.config.kd_lambda * label_loss + (1 - self.config.kd_lambda) * kd_loss
-        loss = label_loss + kd_loss
+        loss = self.config.kd_lambda * label_loss + (1 - self.config.kd_lambda) * kd_loss
+        
         self.log("lr", self.trainer.optimizers[0].param_groups[0]['lr'])
         self.log("epoch", self.current_epoch)
         self.log("train/loss", loss.detach().cpu())
