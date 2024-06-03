@@ -106,7 +106,6 @@ class Network(nn.Module):
         channels_per_stage = [base_channels] + [make_divisible(base_channels * channels_multiplier ** stage_id, 8)
                                                 for stage_id in range(n_stages)]
         self.total_block_count = 0
-
         self.in_c = nn.Sequential(
             Conv2dNormActivation(in_channels,
                                  channels_per_stage[0] // 4,

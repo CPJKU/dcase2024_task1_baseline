@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 from torch.distributions.beta import Beta
-
+import torch.nn.functional as F
 
 def mixstyle(x, p=0.4, alpha=0.3, eps=1e-6):
     if np.random.rand() > p:
@@ -22,3 +22,23 @@ def mixstyle(x, p=0.4, alpha=0.3, eps=1e-6):
     sig_mix = f_sig * lmda + f_sig_perm * (1 - lmda)  # generate mixed standard deviation
     x = x_normed * sig_mix + mu_mix  # denormalize input using the mixed frequency statistics
     return x
+
+def mixup_data(x, y, alpha=1.0, use_cuda=True):
+    '''Returns mixed inputs, pairs of targets, and lambda'''
+    if alpha > 0:
+        beta_dist = torch.distributions.Beta(alpha, alpha)
+        lam = beta_dist.sample()
+    else:
+        lam = 1.0
+
+    batch_size = x.size()[0]
+    if use_cuda:
+        index = torch.randperm(batch_size).cuda()
+    else:
+        index = torch.randperm(batch_size)
+
+    mixed_x = lam * x + (1 - lam) * x[index, :]
+    y_a, y_b = y, y[index]
+    return mixed_x, y_a, y_b, lam
+
+

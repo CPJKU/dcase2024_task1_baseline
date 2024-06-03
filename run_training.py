@@ -15,7 +15,7 @@ from models.baseline import get_model
 from helpers.utils import mixstyle
 from helpers import nessi
 
-
+torch.set_float32_matmul_precision("high")
 class PLModule(pl.LightningModule):
     def __init__(self, config):
         super().__init__()
@@ -121,11 +121,12 @@ class PLModule(pl.LightningModule):
         """
         x, files, labels, devices, cities = train_batch
         x = self.mel_forward(x)  # we convert the raw audio signals into log mel spectrograms
-
+        labels = labels.type(torch.LongTensor)
+        labels = labels.to(device=x.device)
         if self.config.mixstyle_p > 0:
             # frequency mixstyle
             x = mixstyle(x, self.config.mixstyle_p, self.config.mixstyle_alpha)
-        y_hat = self.model(x)
+        y_hat = self.model(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
         loss = samples_loss.mean()
 
@@ -139,8 +140,9 @@ class PLModule(pl.LightningModule):
 
     def validation_step(self, val_batch, batch_idx):
         x, files, labels, devices, cities = val_batch
-
-        y_hat = self.forward(x)
+        labels = labels.type(torch.LongTensor)
+        labels = labels.to(device=x.device)
+        y_hat= self.forward(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
 
         # for computing accuracy
@@ -220,16 +222,17 @@ class PLModule(pl.LightningModule):
 
     def test_step(self, test_batch, batch_idx):
         x, files, labels, devices, cities = test_batch
-
+        labels = labels.type(torch.LongTensor)
+        labels = labels.to(device=x.device)
         # maximum memory allowance for parameters: 128 KB
         # baseline has 61148 parameters -> we can afford 16-bit precision
         # since 61148 * 16 bit ~ 122 kB
-
+        
         # assure fp16
         self.model.half()
         x = self.mel_forward(x)
         x = x.half()
-        y_hat = self.model(x)
+        y_hat = self.model(x.cuda())
         samples_loss = F.cross_entropy(y_hat, labels, reduction="none")
 
         # for computing accuracy
@@ -361,14 +364,16 @@ def train(config):
                          logger=wandb_logger,
                          accelerator='gpu',
                          devices=1,
+                         num_sanity_val_steps=0,
                          precision=config.precision,
-                         callbacks=[pl.callbacks.ModelCheckpoint(save_last=True)])
+                         callbacks=[pl.callbacks.ModelCheckpoint(save_last=True, monitor = "val/loss",save_top_k=1)]
+                         )
     # start training and validation for the specified number of epochs
     trainer.fit(pl_module, train_dl, test_dl)
 
     # final test step
     # here: use the validation split
-    trainer.test(ckpt_path='last', dataloaders=test_dl)
+    trainer.test(ckpt_path='best', dataloaders=test_dl)
 
     wandb.finish()
 
@@ -437,7 +442,7 @@ def evaluate(config):
     all_files = [item[len("audio/"):] for files, _ in predictions for item in files]
     # all predictions
     all_predictions = torch.cat([torch.as_tensor(p) for _, p in predictions], 0)
-    all_predictions = F.softmax(all_predictions, dim=1)
+    all_predictions = F.softmax(all_predictions.float(), dim=1)
 
     # write eval set predictions to csv file
     df = pd.read_csv(dataset_config['meta_csv'], sep="\t")
@@ -463,8 +468,8 @@ if __name__ == '__main__':
 
     # general
     parser.add_argument('--project_name', type=str, default="DCASE24_Task1")
-    parser.add_argument('--experiment_name', type=str, default="Baseline")
-    parser.add_argument('--num_workers', type=int, default=8)  # number of workers for dataloaders
+    parser.add_argument('--experiment_name', type=str, default="Baseline_Ali1_sub5_tuned_noworkers")
+    parser.add_argument('--num_workers', type=int, default=0)  # number of workers for dataloaders
     parser.add_argument('--precision', type=str, default="32")
 
     # evaluation
@@ -474,7 +479,7 @@ if __name__ == '__main__':
     # dataset
     # subset in {100, 50, 25, 10, 5}
     parser.add_argument('--orig_sample_rate', type=int, default=44100)
-    parser.add_argument('--subset', type=int, default=100)
+    parser.add_argument('--subset', type=int, default=5)
 
     # model
     parser.add_argument('--n_classes', type=int, default=10)  # classification model with 'n_classes' output neurons
@@ -490,16 +495,18 @@ if __name__ == '__main__':
     parser.add_argument('--mixstyle_p', type=float, default=0.4)  # frequency mixstyle
     parser.add_argument('--mixstyle_alpha', type=float, default=0.3)
     parser.add_argument('--weight_decay', type=float, default=0.0001)
-    parser.add_argument('--roll_sec', type=int, default=0.1)  # roll waveform over time
+    parser.add_argument('--roll_sec', type=int, default=0)  # roll waveform over time, default = 0.1
 
     # peak learning rate (in cosinge schedule)
     parser.add_argument('--lr', type=float, default=0.005)
-    parser.add_argument('--warmup_steps', type=int, default=2000)
+    parser.add_argument('--warmup_steps', type=int, default=0) # default = 2000, divide by 20 for 5% subset, 10 for 10%, 4 for 25%, 2 for 50%
 
     # preprocessing
-    parser.add_argument('--sample_rate', type=int, default=32000)
+    parser.add_argument('--sample_rate', type=int, default=44100) #default = 32000
     parser.add_argument('--window_length', type=int, default=3072)  # in samples (corresponds to 96 ms)
+    # parser.add_argument('--window_length', type=int, default=4234)
     parser.add_argument('--hop_length', type=int, default=500)  # in samples (corresponds to ~16 ms)
+    # parser.add_argument('--hop_length', type=int, default=706)
     parser.add_argument('--n_fft', type=int, default=4096)  # length (points) of fft, e.g. 4096 point FFT
     parser.add_argument('--n_mels', type=int, default=256)  # number of mel bins
     parser.add_argument('--freqm', type=int, default=48)  # mask up to 'freqm' spectrogram bins
