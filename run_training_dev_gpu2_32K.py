@@ -516,7 +516,7 @@ if __name__ == '__main__':
     parser.add_argument('--warmup_steps', type=int, default=100) # default = 2000, divide by 20 for 5% subset, 10 for 10%, 4 for 25%, 2 for 50%
 
     # preprocessing
-    parser.add_argument('--sample_rate', type=int, default=44100) #default = 32000
+    parser.add_argument('--sample_rate', type=int, default=32000) #default = 32000
     parser.add_argument('--window_length', type=int, default=3072)  # in samples (corresponds to 96 ms)
     # parser.add_argument('--window_length', type=int, default=4234)
     parser.add_argument('--hop_length', type=int, default=500)  # in samples (corresponds to ~16 ms)
